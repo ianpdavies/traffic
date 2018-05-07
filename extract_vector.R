@@ -1,6 +1,13 @@
 #===================================
 # This extracts the values from the raster to a shapefile of a road network
 
+# the reason why we do this is because georectifying the vector to the raster won't work if the image is smaller than the minimum tile size
+# given a starting point z4, this computes an image that is the minimum tile size
+z4 <- c(-122.324618, 47.598470) # top left corner of image
+z1<-destPointRhumb(z4, b=90, r=radius, d=img.size) # find distance to top right corner using the size of map tile at zoom 15, 640 px
+z2 <- destPointRhumb(z1, b=180, r=radius, d=img.size)# bottom right corner
+z3 <- destPointRhumb(z2, b=-90, r=radius, d=img.size)# bottom left corner
+
 
 #===================================
 # clip road vector to raster extent

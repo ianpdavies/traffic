@@ -25,7 +25,7 @@ Supervised classification. Not necessary to run this as the random forest model 
 Edited functions of `RGoogleMaps` package to allow for more map types (including fixing a typo that incorrectly called aerial maps) and added a parameter to turn map labels on and off. 
 
 #### demo.R
-This is a script used for testing the whole shebang. Basically the files above, merged to run independently. It does require multiple save files included in the `Test` folder.
+This is a script used for testing the whole shebang. Basically the files above, merged to run independently. It does require multiple save files included in the `Testing` folder.
 
 
 ## Running the Script

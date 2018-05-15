@@ -9,7 +9,7 @@
 
 # NOTES: 
 # This script requires Windows to run because it uses the Windows Task Scheduler
-# You will need to get your own Bing Maps REST API key and save it as a text file ("bing_key.txt") for this to work
+# You will need to get your own Bing Maps REST API key for this to work
 # Depending on the size of the image and how long you average for (recommended 1 week) this script results in over 100 large pngs - make sure your hard drive has space!
 # (Eventually, we should remove the mosaicked pngs after classification. Keeping them for first few runs to make sure everything works as intended)
 
@@ -54,7 +54,7 @@ imgs <- list() # holds images
 coords <- NULL # holds coordinates of each image
 for(i in 1:imgs.h){ # loops over rows
   extent.img <- extent.img1 # reset back to first image and navigate down to the ith row
-  di <- ifelse(i < 2, 0, img.size*2) # only starts moving after the first image is saved
+  di <- ifelse(i < 2, 0, img.size*2) # counter, only starts moving -after- the first image is saved
   extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 180, d=di, r=radius)[2:1], # move south one image to new row
                   destPointRhumb(c(extent.img[4],extent.img[3]), 180, d=di, r=radius)[2:1])
   for(j in 1:imgs.w){ # loops over columns

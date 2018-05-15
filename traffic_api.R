@@ -11,14 +11,10 @@ library(RStoolbox)
 # notes
 #==================================================================
 
-# why are the files so big? ~1.6MB?
-# the latitude of the top of bounding box is different from the bottom, so the images should actually be slightly trapezoidal in real life, but we ignore that. This shouldn't be a problem for moderately sized bounding boxes. Maybe not even a problem at all with Mercator?
-#anyway to remove labeling from map?
-# is there a way to remove labels from non-aerial static image? or maybe segment mean shift would turn out the same regardless
 
 
 #==================================================================
-# Scraping 
+# Downloading static maps 
 #==================================================================
 
 setwd("C:/Users/ipdavies/Documents/traffic/bing")

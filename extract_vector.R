@@ -11,7 +11,8 @@ z2 <- destPointRhumb(z1, b=180, r=radius, d=img.size)# bottom right corner
 z3 <- destPointRhumb(z2, b=-90, r=radius, d=img.size)# bottom left corner
 
 # now we would download a static map of the above extent
-load("imgs")
+load("test_imgs")
+
 #===================================
 # clip road vector to raster extent
 
@@ -51,9 +52,6 @@ extent(r.class) <- rproj # set extent of raster
 load("roads_clip")
 plot(r.class)
 plot(roads_clip, add=TRUE)
-
-writeRaster(r.class, filename="rclass3.tif", options=c('TFW=YES'), overwrite=TRUE)
-writeOGR(obj=roads_clip, dsn="C:\\Users\\ipdavies\\Documents\\traffic\\bing\\images", layer="road_clip", driver="ESRI Shapefile")
 
 #===================================
 # extract raster values to road vector

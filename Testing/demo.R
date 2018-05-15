@@ -72,9 +72,8 @@ load("test_imgs") # load saved static maps.
 #              "W","W","W") # add text labels
 
 # load("training_pts")
-load("training_pts2") # training points for image r with traffic colors
+load("training_pts") # training points for image r with traffic colors
 
-pts <- pts2
 # create training data
 train <- pts[c("x","y")] # extract lat/long of training points
 vals <- data.frame(class=pts$class) # create a dataframe with class labels. 

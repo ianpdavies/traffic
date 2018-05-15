@@ -414,7 +414,7 @@ load("test_imgs")
 #              "W","W","W") # add text labels
 
 # load("training_pts")
-load("training_pts2")
+load("training_pts")
 
 pts <- pts2
 # create training data

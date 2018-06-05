@@ -17,20 +17,19 @@
 # Dependencies
 #==================================================================
 
-# library(RgoogleMaps) # for accessing Bing Maps API # actually probably don't need this anymore
+library(RgoogleMaps) # for accessing Bing Maps API # Need it for XY2LatLon
 library(stringr) # stringr::str_pad for file naming
 library(geosphere) # for spherical geometry calculations
 library(raster) # for classification and extraction to road network
 library(rgdal) # for geographic transformations and projections
 library(magick) # for mosaicking static images together
 library(taskscheduleR) # for scheduling hourly image downloads
-# library(RStoolbox) # don't need this
+library(RStoolbox) # don't need this - perhaps for sclass?
 
 #==================================================================
 # Set constants and map parameters
 #==================================================================
 
-setwd("C:/Users/ipdavies/Documents/traffic/bing") # get rid of this before sharing
 source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
 
 load("mapValues")
@@ -50,7 +49,7 @@ time.stamp <- format(Sys.time(), "%a%d%b%y_%H_%M_") # want all images taken in a
 extent.img1 <- c(destPointRhumb(c(bbox[2],bbox[3]), 180, d=img.size, r=radius)[2:1], # first img starts near the northwestern corner (but need to do math to get the lower left and upper right coordinates of that img, which may be smaller than coords of initial bounding box)
                 destPointRhumb(c(bbox[2],bbox[3]), 90, d=img.size, r=radius)[2:1]) # upper right corner of first img
   
-imgs <- list() # holds images
+imgs <- c() # holds images
 coords <- NULL # holds coordinates of each image
 for(i in 1:imgs.h){ # loops over rows
   extent.img <- extent.img1 # reset back to first image and navigate down to the ith row
@@ -109,10 +108,7 @@ rm(mu)
 #==================================================================
 # Georeference the raster
 #==================================================================
-
-<<<<<<< HEAD
-=======
-r<-brick(w) # convert mosaic image to a rasterbrick object
+r<-brick(paste(time.stamp, "mosaic", sep=""), package="raster") # convert mosaic image to a rasterbrick object
 crs(r) <- myProj # add coordinate system
 
 ## georeference corners
@@ -125,17 +121,18 @@ ymin(r) <- coords[(((imgs.h-1) * imgs.w) + 1), 3] # min lat
 # Supervised classification of traffic conditions
 #=================================================
 
-load("sclass") # get trained classification model
+load("sclasses") # get trained classification model
 names(r) = c("band1","band2","band3") # give image bands the same names as those used in sclass
 rclass <- predict(r, sclass$model) # classify using model generated from training points
 
 # save as compressed geotiff
-writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", options=c("COMPRESS=JPEG"), overwrite=TRUE)
+writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", 
+            options=c("COMPRESS=JPEG"), overwrite=TRUE)
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)
 
-
+plot(rclass)
 #===================================================================
 #===================================================================
 #===================================================================
@@ -214,17 +211,17 @@ library(raster) # for classification and extraction to road network
 library(rgdal) # for geographic transformations and projections
 library(magick) # for mosaicking static images together
 library(RStoolbox) # don't need this
->>>>>>> c9877345f9199d30ccc828885f39e7b27f749288
+#>>>>>>> c9877345f9199d30ccc828885f39e7b27f749288
 
 
 #==================================================================
 # Downloading static maps 
 #==================================================================
 
-setwd("C:/Users/ipdavies/Documents/traffic/bing")
+#setwd("C:/Mathis/ICSL/stormwater/src")
 source("map_api_edit.R")
 
-apiKey = scan("bing_key.txt",what="") # text file with Bing Maps API key
+apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 setwd(paste(getwd(), "/images", sep=""))
 
 # prior full extent from user
@@ -335,33 +332,33 @@ ymin(r) <- coords[(((imgs.h-1) * imgs.w) + 1), 3] # min lat
 #===================================
 # get test images
 
-# # smaller image to test, 1
-# map.test=GetBingMap2( # aerial image
-#     mapArea=c(47.591640, -122.324618, 47.598470, -122.315305),
-#     maptype="CanvasDark", # use aerial for final because it doesn't have labels
-#     # zoom=15,
-#     apiKey=apiKey,
-#     extraURL="&mapLayer=TrafficFlow",
-#     destfile="test.png",
-#     verbose=1,
-#     labels=FALSE
-#   )
-# 
-# image_write(image_read("test.png"), path="test.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
-# 
-# # smaller image to test, 2
-# map.test=GetBingMap2( # aerial image
-#   mapArea=c(47.556256, -122.296838, 47.565523, -122.281560),
-#   maptype="CanvasDark", # use aerial for final because it doesn't have labels
-#   # zoom=15,
-#   apiKey=apiKey,
-#   extraURL="&mapLayer=TrafficFlow",
-#   destfile="test2.png",
-#   verbose=1,
-#   labels=FALSE
-# )
-# 
-# image_write(image_read("test2.png"), path="test2.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
+# smaller image to test, 1
+map.test=GetBingMap2( # aerial image
+    mapArea=c(47.591640, -122.324618, 47.598470, -122.315305),
+    maptype="CanvasDark", # use aerial for final because it doesn't have labels
+    # zoom=15,
+    apiKey=apiKey,
+    extraURL="&mapLayer=TrafficFlow",
+    destfile="test.png",
+    verbose=1,
+    labels=FALSE
+  )
+
+image_write(image_read("test.png"), path="test.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
+
+# smaller image to test, 2
+map.test=GetBingMap2( # aerial image
+  mapArea=c(47.556256, -122.296838, 47.565523, -122.281560),
+  maptype="CanvasDark", # use aerial for final because it doesn't have labels
+  # zoom=15,
+  apiKey=apiKey,
+  extraURL="&mapLayer=TrafficFlow",
+  destfile="test2.png",
+  verbose=1,
+  labels=FALSE
+)
+
+image_write(image_read("test2.png"), path="test2.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
 
 # smaller image to test, 3, but this time at the minimum map tile size
 
@@ -371,28 +368,28 @@ z2 <- destPointRhumb(z1, b=180, r=radius, d=img.size)# bottom right corner
 z3 <- destPointRhumb(z2, b=-90, r=radius, d=img.size)# bottom left corner
 
 
-# map.test=GetBingMap2( 
-#   mapArea=c(z3[2], z3[1], z1[2], z1[1]),
-#   maptype="CanvasDark", 
-#   # zoom=15,
-#   apiKey=apiKey,
-#   extraURL="&mapLayer=TrafficFlow",
-#   destfile="test3.png",
-#   verbose=1,
-#   labels=FALSE
-# )
-# 
-# image_write(image_read("test3.png"), path="test3.png", format="png") 
-# 
-# # read png as rasterbricks
-# r<-brick("test.png")
-# r2<-brick("test2.png")
-# r3<-brick("test3.png")
-# crs(r) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
-# crs(r2) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
-# crs(r3) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
-# 
-# save(r,r2, r3, file="test_imgs")
+map.test=GetBingMap2(
+  mapArea=c(z3[2], z3[1], z1[2], z1[1]),
+  maptype="CanvasDark",
+  # zoom=15,
+  apiKey=apiKey,
+  extraURL="&mapLayer=TrafficFlow",
+  destfile="test3.png",
+  verbose=1,
+  labels=FALSE
+)
+
+image_write(image_read("test3.png"), path="test3.png", format="png")
+
+# read png as rasterbricks
+r<-brick("test.png")
+r2<-brick("test2.png")
+r3<-brick("test3.png")
+crs(r) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
+crs(r2) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
+crs(r3) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
+
+save(r,r2, r3, file="test_imgs")
 load("test_imgs")
 
 
@@ -403,7 +400,7 @@ load("test_imgs")
 # # get training points and values
 # pts<-click(r,n=21,id=TRUE,xy=TRUE,cell=TRUE)
 # pts$class=c("G","Y","O","R","B","A","W") # add text labels
-
+# 
 # pts2<-click(r,n=21,id=TRUE,xy=TRUE,cell=TRUE)
 # pts2$class=c("G","G","G",
 #              "Y","Y","Y",
@@ -416,15 +413,15 @@ load("test_imgs")
 # load("training_pts")
 load("training_pts")
 
-pts <- pts2
+#pts <- pts2
 # create training data
 train <- pts[c("x","y")] # extract lat/long of training points
 vals <- data.frame(class=pts$class) # create a dataframe with class labels. 
 vals$class <- factor(vals$class) # convert to factor
 crs(r) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs" # assign CRS used by bing maps
 train <- SpatialPointsDataFrame(train, vals, proj4string=crs("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs")) # create spatial dataframe with training points
+names(r) <- c("band1","band2","band3")
 sclass <- superClass(r, trainData=train, responseCol="class",model = "rf", tuneLength = 1) # supervised classification
-
 
 # plot classified image vs. original image to check
 m <- rbind(c(1, 2))
@@ -441,6 +438,6 @@ names(r3) <- names(r) # give dataframe columns (i.e. image bands) the same names
 sclass3 <- predict(r3, sclass$model) # classify using model generated from training points
 
 # save(sclass, sclass2, sclass3, file="sclasses")
-load("sclasses")
+# load("sclasses")
 
 

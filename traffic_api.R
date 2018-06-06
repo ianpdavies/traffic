@@ -34,14 +34,46 @@ source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps
 load("mapValues")
 
 #==================================================================
+# Set constants and map parameters - FOR TROUBLESHOOTING
+#==================================================================
+# These will be called in the traffic_api.R script 
+
+# apiKey = scan("bing_key.txt", what="") # text file with Bing Maps API key
+apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
+
+# projection used by Bing Maps (Official reference, EPSG:3857)
+myProj <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
+
+# Full extent of area to be covered.
+bbox <- c(47.5, -122.5, 48, -122)  # Coordinates are lower left and upper right lat/long (in that order)
+#bbox <- c(47.614086, -122.235819, 47.637687, -122.128015)  # Coordinates are lower left and upper right lat/long (in that order)
+
+# calculate optimal number of images to fetch
+zoom <- 15
+radius = 6378137 # radius of earth used in Bing Maps
+px = 640 # length of the image in pixels (maximum that Bing/Google will output)
+groundres <- (cos(bbox[1] * pi/180) * 2 * pi * radius) / (256 * 2^zoom) # size of pixel in meters for zoom level at latitude
+img.size <- px*groundres # number of pixels * ground res = image height and width in meters
+bbox.w <- distRhumb(bbox[c(2,3)], bbox[c(4,3)], r=radius) # ground distance of bounding box (east to west), top left corner to top right
+bbox.h <- distRhumb(bbox[c(2,3)], bbox[c(2,1)], r=radius) # ground distance of bounding box (north to south), top left corner to bottom left corner
+imgs.w <- ceiling(bbox.w/img.size) # optimal number of images east to west
+imgs.h <- ceiling(bbox.h/img.size) # optimal number of images north to south
+
+save(apiKey, myProj, zoom, radius, px, groundres, 
+     img.size, bbox.w, bbox.h, imgs.w, imgs.h, 
+     file = "mapValues")
+
+
+#==================================================================
 # Download static images
 #==================================================================
 
-map.params <- list(maptype="Aerial", # parameters needed to construct URL for API call
+map.params <- list(maptype="CanvasDark", # parameters needed to construct URL for API call
                    zoom = zoom,
                    apiKey=apiKey,
                    extraURL="&mapLayer=TrafficFlow",
-                   verbose=1)
+                   verbose=1,
+                   labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
 
 time.stamp <- format(Sys.time(), "%a%d%b%y_%H_%M_") # want all images taken in an instance to have same timestamp
 extent.img1 <- c(destPointRhumb(c(bbox[2],bbox[3]), 180, d=img.size, r=radius)[2:1], # first img starts near the northwestern corner (but need to do math to get the lower left and upper right coordinates of that img, which may be smaller than coords of initial bounding box)
@@ -118,6 +150,12 @@ xmax(r) <- coords[imgs.w, 8] # max lon
 xmin(r) <- coords[1,2] # min lon
 ymax(r) <- coords[1,1] # max lat
 ymin(r) <- coords[(((imgs.h-1) * imgs.w) + 1), 3] # min lat
+
+#Write out to TIFF file
+writeRaster(r, filename=paste(time.stamp, "mosaic_proj.tiff", sep=""), format="GTiff",overwrite=T)
+#In ArcGIS, create 100 random points, assign to land use class/road classm then create another 100 points specifically on roads
+#
+
 
 #=================================================
 # Supervised classification of traffic conditions
@@ -281,7 +319,7 @@ apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 # pts$class=c("G","Y","O","R","B","A","W") # add text labels
 # 
 plotRGB(r)
-ptsg<-click(r,n=42,id=TRUE,xy=TRUE,cell=TRUE)
+pts2<-click(r,n=42,id=TRUE,xy=TRUE,cell=TRUE)
 pts2$class=c("G","G","G","G","G","G",
              "Y","Y","Y","Y","Y","Y",
              "O","O","O","O","O","O",

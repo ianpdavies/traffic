@@ -68,11 +68,12 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219,
   else if (!missing(mapArea)) {
     latR = range(mapArea[c(1, 3)])
     lonR = range(mapArea[c(2, 4)])
-    zoom <- min(MaxZoom(latR, lonR, size)) 
+    #zoom <- min(MaxZoom(latR, lonR, size)) 
     lat.center <- mean(latR)
     lon.center <- mean(lonR)
     center = c(lat.center, lon.center)
     BBOX = list(ll = mapArea[1:2], ur = mapArea[3:4])
+    print(BBOX)
     names(BBOX$ll) = c("lat", "lon")
     names(BBOX$ur) = c("lat", "lon")
     MetaInfo <- list(lat.center = center[1], lon.center = center[2], 

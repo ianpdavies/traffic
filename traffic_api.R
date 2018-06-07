@@ -45,24 +45,50 @@ apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 myProj <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
 
 # Full extent of area to be covered.
-bbox <- c(47.5, -122.5, 48, -122)  # Coordinates are lower left and upper right lat/long (in that order)
-#bbox <- c(47.614086, -122.235819, 47.637687, -122.128015)  # Coordinates are lower left and upper right lat/long (in that order)
+#bbox <- c(47.5, -122.5, 48, -122)  # Coordinates are lower left and upper right lat/long (in that order)
+bbox <- c(47.614086, -122.235819, 47.637687, -122.128015)  # Coordinates are lower left and upper right lat/long (in that order)
 
 # calculate optimal number of images to fetch
 zoom <- 15
 radius = 6378137 # radius of earth used in Bing Maps
 px = 640 # length of the image in pixels (maximum that Bing/Google will output)
-groundres <- (cos(bbox[1] * pi/180) * 2 * pi * radius) / (256 * 2^zoom) # size of pixel in meters for zoom level at latitude
-img.size <- px*groundres # number of pixels * ground res = image height and width in meters
-bbox.w <- distRhumb(bbox[c(2,3)], bbox[c(4,3)], r=radius) # ground distance of bounding box (east to west), top left corner to top right
-bbox.h <- distRhumb(bbox[c(2,3)], bbox[c(2,1)], r=radius) # ground distance of bounding box (north to south), top left corner to bottom left corner
-imgs.w <- ceiling(bbox.w/img.size) # optimal number of images east to west
-imgs.h <- ceiling(bbox.h/img.size) # optimal number of images north to south
 
-save(apiKey, myProj, zoom, radius, px, groundres, 
-     img.size, bbox.w, bbox.h, imgs.w, imgs.h, 
-     file = "mapValues")
 
+#Number of pixels along the lengh of the world: 256*2^zoom level 
+#Each tile is 256 pixels, so there are 2^zoom level tiles along the lengh of the world
+
+#Compute width and height of bounding box in pixels
+w_pix <- latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1] -latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1] #tile X number*256 pixels+pixel coordinate within tile of upper right corner - tile X number*256 pixels+pixel coordinate within tile of lower left corner
+h_pix <- latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2] -latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2] #tile Y number*256 pixels+pixel coordinate within tile of lower left corner - tile X number*256 pixels+pixel coordinate within tile of upper right corner
+#Number of images required to cover bounding box
+imgs.w <- ceiling(w_pix/px)
+imgs.h <- ceiling(h_pix/px)
+
+
+
+latlong_to_pixelcoords <- function(lat, lon, zoom) {
+  rawXY <- LatLon2XY(lat,lon,zoom)
+  pixX <- rawXY$Tile[1,][1]*256+rawXY$Coords[1,][1]
+  pixY <- rawXY$Tile[1,][2]*256+rawXY$Coords[1,][2]
+  return(c(pixX, pixY))
+}
+
+pixelcoords_to_latlong <- function(pixY, pixX, zoom) {
+  mapSize <- 256*2^zoom
+  dx = (pixX/mapSize) - 0.5
+  dy = 0.5 - (pixY/mapSize)
+  latitude = 90-360*atan(exp(-dy * 2 * pi))/pi
+  longitude = 360*dx
+  return(c(latitude,longitude))
+}
+
+# img.size <- px*groundres # number of pixels * ground res = image height and width in meters
+# bbox.w <- distRhumb(bbox[c(2,3)], bbox[c(4,3)], r=radius) # ground distance of bounding box (east to west), top left corner to top right
+# bbox.h <- distRhumb(bbox[c(2,3)], bbox[c(2,1)], r=radius) # ground distance of bounding box (north to south), top left corner to bottom left corner
+# imgs.w <- ceiling(bbox.w/img.size) # optimal number of images east to west
+# imgs.h <- ceiling(bbox.h/img.size) # optimal number of images north to south
+
+save(apiKey, myProj, zoom, radius, px,imgs.w, imgs.h, file = "mapValues")
 
 #==================================================================
 # Download static images
@@ -75,23 +101,38 @@ map.params <- list(maptype="CanvasDark", # parameters needed to construct URL fo
                    verbose=1,
                    labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
 
-time.stamp <- format(Sys.time(), "%a%d%b%y_%H_%M_") # want all images taken in an instance to have same timestamp
-extent.img1 <- c(destPointRhumb(c(bbox[2],bbox[3]), 180, d=img.size, r=radius)[2:1], # first img starts near the northwestern corner (but need to do math to get the lower left and upper right coordinates of that img, which may be smaller than coords of initial bounding box)
-                destPointRhumb(c(bbox[2],bbox[3]), 90, d=img.size, r=radius)[2:1]) # upper right corner of first img
-  
+time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
+# extent.img1 <- c(destPointRhumb(c(bbox[2],bbox[3]), 180, d=img.size, r=radius)[2:1], # first img starts near the northwestern corner (but need to do math to get the lower left and upper right coordinates of that img, which may be smaller than coords of initial bounding box)
+#                destPointRhumb(c(bbox[2],bbox[3]), 90, d=img.size, r=radius)[2:1]) # upper right corner of first img
+extent.img1.ll <- pixelcoords_to_latlong(latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[2]+px,latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[1],zoom)
+extent.img1.ur <- pixelcoords_to_latlong(latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[2],latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[1]+px,zoom)
+extent.img1 <- c(extent.img1.ll,extent.img1.ur)
+
 imgs <- c() # holds images
 coords <- NULL # holds coordinates of each image
 for(i in 1:imgs.h){ # loops over rows
   extent.img <- extent.img1 # reset back to first image and navigate down to the ith row
-  di <- ifelse(i < 2, 0, img.size*((i-1)*2)) # only starts moving after the first image is saved
-  extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 180, d=di, r=radius)[2:1], # move south one image to new row
-                  destPointRhumb(c(extent.img[4],extent.img[3]), 180, d=di, r=radius)[2:1])
+  # di <- ifelse(i < 2, 0, img.size)
+  # extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 180, d=di, r=radius)[2:1], # move south one image to new row
+  #                 destPointRhumb(c(extent.img[4],extent.img[3]), 180, d=di, r=radius)[2:1])
+  di <- ifelse(i < 2, 0, px*(i-1)) # only starts moving after the first image is saved
+  extent.img.ll <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[2]+di,
+                                       latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[1],zoom)
+  extent.img.ur <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[2]+di,
+                                          latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[1],zoom)
+  extent.img <- c(extent.img.ll, extent.img.ur)
+    
   for(j in 1:imgs.w){ # loops over columns
-    dj <- ifelse(j < 2, 0, img.size*2)
-    extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 90, d=dj, r=radius)[2:1], # move east one image to new column
-                    destPointRhumb(c(extent.img[4],extent.img[3]), 90, d=dj, r=radius)[2:1])
-    print(paste0('j:',j,'-',extent.img))
-
+    # dj <- ifelse(j < 2, 0, img.size)
+    # extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 90, d=dj, r=radius)[2:1], # move east one image to new column
+    #                 destPointRhumb(c(extent.img[4],extent.img[3]), 90, d=dj, r=radius)[2:1])
+    dj <- ifelse(j < 2, 0, px) # only starts moving after the first image is saved
+    extent.img.ll <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[2],
+                                            latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[1]+dj,zoom)
+    extent.img.ur <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[2],
+                                            latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[1]+dj,zoom)
+    extent.img <- c(extent.img.ll, extent.img.ur)
+    
     filename <- paste(time.stamp, # time stamp
                       str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
                       str_pad(i, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
@@ -104,6 +145,9 @@ for(i in 1:imgs.h){ # loops over rows
                     XY2LatLon(map, px, -px, zoom),
                     XY2LatLon(map, px, px, zoom))
     coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
+    
+    #Check whether coordinates work
+    print(extent.img)
   }
 }
 rm(i,j,z,coords.tmp, map, extent.img1) # remove temp objects

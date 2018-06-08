@@ -16,7 +16,7 @@
 #==================================================================
 # Dependencies
 #==================================================================
-
+print(Sys.time())
 library(RgoogleMaps) # for accessing Bing Maps API # Need it for XY2LatLon
 library(stringr) # stringr::str_pad for file naming
 library(geosphere) # for spherical geometry calculations
@@ -25,6 +25,7 @@ library(rgdal) # for geographic transformations and projections
 library(magick) # for mosaicking static images together
 library(taskscheduleR) # for scheduling hourly image downloads
 library(RStoolbox) # don't need this - perhaps for sclass?
+library(OSMscale) #problably not useful after troubleshooting
 
 #==================================================================
 # Set constants and map parameters
@@ -32,6 +33,24 @@ library(RStoolbox) # don't need this - perhaps for sclass?
 
 source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
 load("mapValues")
+
+#Convert lat-long coordinates to Bing map to raw pixel coordinates
+latlong_to_pixelcoords <- function(lat, lon, zoom) {
+  rawXY <- LatLon2XY(lat,lon,zoom) #Lat Long to tile # + pixel coordinate within tile
+  pixX <- rawXY$Tile[1,][1]*256+floor(rawXY$Coords[1,][1]) #Pixel coordinate = tile number*256+pixel coordinate within tile 
+  pixY <- rawXY$Tile[1,][2]*256+floor(rawXY$Coords[1,][2]) #There are always 256 pixels/tile and 2^zoom tiles in the world, so 256*2^zoom pixels in the world
+  return(c(pixX, pixY))
+}
+
+#Convert pixel coordinates to lat-long coordinates
+pixelcoords_to_latlong <- function(pixY, pixX, zoom) {
+  mapSize <- 256*2^zoom
+  dx = (pixX/mapSize) - 0.5
+  dy = 0.5 - (pixY/mapSize)
+  latitude = 90-360*atan(exp(-dy * 2 * pi))/pi
+  longitude = 360*dx
+  return(c(latitude,longitude))
+}
 
 #==================================================================
 # Set constants and map parameters - FOR TROUBLESHOOTING
@@ -51,42 +70,16 @@ bbox <- c(47.614086, -122.235819, 47.637687, -122.128015)  # Coordinates are low
 # calculate optimal number of images to fetch
 zoom <- 15
 radius = 6378137 # radius of earth used in Bing Maps
-px = 640 # length of the image in pixels (maximum that Bing/Google will output)
+px = 500 # length of the image in pixels (maximum that Bing/Google will output)
 
+#Computer pixel coordinate X and Y for the lower left and upper right corner of every row and column
+bbox.list.ll.x <- seq(latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1],latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1],px)
+bbox.list.ur.x <- bbox.list.ll.x + (px-1)
+bbox.list.ur.y <- seq(latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2],latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2],px)
+bbox.list.ll.y <- bbox.list.ur.y + (px-1)
 
-#Number of pixels along the lengh of the world: 256*2^zoom level 
-#Each tile is 256 pixels, so there are 2^zoom level tiles along the lengh of the world
-
-#Compute width and height of bounding box in pixels
-w_pix <- latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1] -latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1] #tile X number*256 pixels+pixel coordinate within tile of upper right corner - tile X number*256 pixels+pixel coordinate within tile of lower left corner
-h_pix <- latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2] -latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2] #tile Y number*256 pixels+pixel coordinate within tile of lower left corner - tile X number*256 pixels+pixel coordinate within tile of upper right corner
-#Number of images required to cover bounding box
-imgs.w <- ceiling(w_pix/px)
-imgs.h <- ceiling(h_pix/px)
-
-
-
-latlong_to_pixelcoords <- function(lat, lon, zoom) {
-  rawXY <- LatLon2XY(lat,lon,zoom)
-  pixX <- rawXY$Tile[1,][1]*256+rawXY$Coords[1,][1]
-  pixY <- rawXY$Tile[1,][2]*256+rawXY$Coords[1,][2]
-  return(c(pixX, pixY))
-}
-
-pixelcoords_to_latlong <- function(pixY, pixX, zoom) {
-  mapSize <- 256*2^zoom
-  dx = (pixX/mapSize) - 0.5
-  dy = 0.5 - (pixY/mapSize)
-  latitude = 90-360*atan(exp(-dy * 2 * pi))/pi
-  longitude = 360*dx
-  return(c(latitude,longitude))
-}
-
-# img.size <- px*groundres # number of pixels * ground res = image height and width in meters
-# bbox.w <- distRhumb(bbox[c(2,3)], bbox[c(4,3)], r=radius) # ground distance of bounding box (east to west), top left corner to top right
-# bbox.h <- distRhumb(bbox[c(2,3)], bbox[c(2,1)], r=radius) # ground distance of bounding box (north to south), top left corner to bottom left corner
-# imgs.w <- ceiling(bbox.w/img.size) # optimal number of images east to west
-# imgs.h <- ceiling(bbox.h/img.size) # optimal number of images north to south
+imgs.w <- length(bbox.list.ll.x) #Number of columns
+imgs.h <- length(bbox.list.ll.y) #Number of rows
 
 save(apiKey, myProj, zoom, radius, px,imgs.w, imgs.h, file = "mapValues")
 
@@ -99,58 +92,42 @@ map.params <- list(maptype="CanvasDark", # parameters needed to construct URL fo
                    apiKey=apiKey,
                    extraURL="&mapLayer=TrafficFlow",
                    verbose=1,
+                   size=px,
                    labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
 
 time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
-# extent.img1 <- c(destPointRhumb(c(bbox[2],bbox[3]), 180, d=img.size, r=radius)[2:1], # first img starts near the northwestern corner (but need to do math to get the lower left and upper right coordinates of that img, which may be smaller than coords of initial bounding box)
-#                destPointRhumb(c(bbox[2],bbox[3]), 90, d=img.size, r=radius)[2:1]) # upper right corner of first img
-extent.img1.ll <- pixelcoords_to_latlong(latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[2]+px,latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[1],zoom)
-extent.img1.ur <- pixelcoords_to_latlong(latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[2],latlong_to_pixelcoords(bbox[3],bbox[2], zoom)[1]+px,zoom)
-extent.img1 <- c(extent.img1.ll,extent.img1.ur)
+
 
 imgs <- c() # holds images
 coords <- NULL # holds coordinates of each image
-for(i in 1:imgs.h){ # loops over rows
-  extent.img <- extent.img1 # reset back to first image and navigate down to the ith row
-  # di <- ifelse(i < 2, 0, img.size)
-  # extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 180, d=di, r=radius)[2:1], # move south one image to new row
-  #                 destPointRhumb(c(extent.img[4],extent.img[3]), 180, d=di, r=radius)[2:1])
-  di <- ifelse(i < 2, 0, px*(i-1)) # only starts moving after the first image is saved
-  extent.img.ll <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[2]+di,
-                                       latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[1],zoom)
-  extent.img.ur <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[2]+di,
-                                          latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[1],zoom)
-  extent.img <- c(extent.img.ll, extent.img.ur)
-    
+for (i in 1:imgs.h){ #loops over rows
   for(j in 1:imgs.w){ # loops over columns
-    # dj <- ifelse(j < 2, 0, img.size)
-    # extent.img <- c(destPointRhumb(c(extent.img[2],extent.img[1]), 90, d=dj, r=radius)[2:1], # move east one image to new column
-    #                 destPointRhumb(c(extent.img[4],extent.img[3]), 90, d=dj, r=radius)[2:1])
-    dj <- ifelse(j < 2, 0, px) # only starts moving after the first image is saved
-    extent.img.ll <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[2],
-                                            latlong_to_pixelcoords(extent.img[1],extent.img[2], zoom)[1]+dj,zoom)
-    extent.img.ur <- pixelcoords_to_latlong(latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[2],
-                                            latlong_to_pixelcoords(extent.img[3],extent.img[4], zoom)[1]+dj,zoom)
-    extent.img <- c(extent.img.ll, extent.img.ur)
-    
+    extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of four corners of each image (for later georeferencing)
+    extent.img.lr <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ur.x[j], zoom)
+    extent.img.ul <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ll.x[j], zoom)
+    extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom)
+    extent.img <- c(extent.img.ll, extent.img.ur) #Lower left, upper right coordinates for Bing Map download
+    #################Create projected polygon envelopes for each image, to troubleshoot and visualize##########
+    # filename <- paste(time.stamp, # time stamp
+    #                   str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+    #                   str_pad(i, nchar(imgs.w), pad = "0"),"_envelope")
+    # poly <- as(raster::extent(extent.img[c(2,4,1,3)]),"SpatialPolygons")
+    # proj4string(poly) <- CRS("+proj=longlat +datum=WGS84")
+    # polydf <- SpatialPolygonsDataFrame(poly, data.frame(ID=filename))
+    # writeOGR(polydf ,getwd(),filename,driver="ESRI Shapefile", overwrite_layer = T)
+    #####
     filename <- paste(time.stamp, # time stamp
                       str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
                       str_pad(i, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
                       ".png", sep="")
-    map <- do.call(GetBingMap2, c(list(mapArea=extent.img, # download map
-                                       destfile=filename), map.params))
+    map <- do.call(GetBingMap2, c(list(mapArea=extent.img,destfile=filename), map.params))# download map
     imgs <- c(imgs, filename) # list of filenames
-    coords.tmp <- c(XY2LatLon(map, -px, px, zoom), # lat/long of corners
-                    XY2LatLon(map, -px, -px, zoom), 
-                    XY2LatLon(map, px, -px, zoom),
-                    XY2LatLon(map, px, px, zoom))
+    coords.tmp <- c(extent.img.ul,extent.img.ll,extent.img.lr,extent.img.ur)
     coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
-    
-    #Check whether coordinates work
-    print(extent.img)
+    print(coords.tmp)
   }
 }
-rm(i,j,z,coords.tmp, map, extent.img1) # remove temp objects
+rm(i,j,coords.tmp, map, extent.img) # remove temp objects
 
 #==================================================================
 # Mosaic images into one raster
@@ -187,19 +164,25 @@ rm(mu)
 # Georeference the raster
 #==================================================================
 r<-brick(paste(time.stamp, "mosaic.png", sep=""), package="raster") # convert mosaic image to a rasterbrick object
-crs(r) <- myProj # add coordinate system
 
-## georeference corners
-xmax(r) <- coords[imgs.w, 8] # max lon
-xmin(r) <- coords[1,2] # min lon
-ymax(r) <- coords[1,1] # max lat
-ymin(r) <- coords[(((imgs.h-1) * imgs.w) + 1), 3] # min lat
+#Create a polygon envelope with long-lat of actual bounding box, project coordinates to Bing Map projected coordinate system (Web Mercator)
+#Then use it as a template to georeference image 
+envelope <- c(min(coords[,c(2,4,6,8)]),max(coords[,c(2,4,6,8)]),min(coords[,c(1,3,5,7)]), max(coords[,c(1,3,5,7)])) #min lat, max lat, min long, max lon
+poly <- as(raster::extent(envelope),"SpatialPolygons")
+proj4string(poly) <- CRS("+proj=longlat +datum=WGS84")
+WebMercator <- CRS("+init=epsg:3857")
+polyproj <- spTransform(poly, CRSobj=WebMercator)
 
-#Write out to TIFF file
-writeRaster(r, filename=paste(time.stamp, "mosaic_proj.tiff", sep=""), format="GTiff",overwrite=T)
-#In ArcGIS, create 100 random points, assign to land use class/road classm then create another 100 points specifically on roads
-#
+#Define extent in Web Mercator coordinates
+xmax(r) <- xmax(polyproj) # max lon
+xmin(r) <- xmin(polyproj) # min lon
+ymax(r) <- ymax(polyproj) # max lat
+ymin(r) <- ymin(polyproj) # min lat
 
+crs(r) <- WebMercator # Define coordinate system
+
+writeRaster(r, filename=paste(time.stamp, "mosaic_proj.tif", sep=""), format="GTiff", overwrite=TRUE)
+print(Sys.time())
 
 #=================================================
 # Supervised classification of traffic conditions

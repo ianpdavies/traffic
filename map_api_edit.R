@@ -4,12 +4,11 @@
 # https://msdn.microsoft.com/en-us/library/mt823636.aspx
 
 
-GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, 
-                                                                      -122.325, 47.61, -122.107), size = c(640, 640), destfile, 
-                         zoom = 12, markers, path = "", maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight", # got rid of extra space in "Aerial ", added other styles
-                                                                    "AerialWithLabels")[1], format = c("png", "gif", "jpg", 
-                                                                                                       "jpg-baseline", "png8", "png32")[1], extraURL = "", RETURNIMAGE = TRUE, 
-                         GRAYSCALE = FALSE, NEWMAP = TRUE, SCALE = 1, apiKey = NULL, 
+GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -122.325, 47.61, -122.107), size = c(640, 640), destfile, 
+                         zoom = 12, markers, path = "", 
+                         maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight","AerialWithLabels")[1], 
+                         format = c("png", "gif", "jpg","jpg-baseline", "png8", "png32")[1],
+                         extraURL = "", RETURNIMAGE = TRUE, GRAYSCALE = FALSE, NEWMAP = TRUE, SCALE = 1, apiKey = NULL, 
                          verbose = 0, labels=TRUE) 
 {
   if (!(maptype %in% c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight", "AerialWithLabels"))) # got rid of extra space in "Aerial ", added other styles
@@ -68,7 +67,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219,
   else if (!missing(mapArea)) {
     latR = range(mapArea[c(1, 3)])
     lonR = range(mapArea[c(2, 4)])
-    #zoom <- min(MaxZoom(latR, lonR, size)) 
+    zoom <- min(MaxZoom(latR, lonR, c(size,size)))
     lat.center <- mean(latR)
     lon.center <- mean(lonR)
     center = c(lat.center, lon.center)
@@ -83,7 +82,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219,
     bingURL = paste0("http://dev.virtualearth.net/REST/v1/Imagery/Map/", 
                      maptype, "?mapArea=")
     url <- paste0(bingURL, paste0(mapArea, collapse = ","), 
-                  "&mapSize=", s, "&format=", format)
+                  "&mapSize=", s, "&format=", format, "&zoomLevel=", zoom)
   }
   url <- paste(url, path, sep = "")
   url <- paste(url, extraURL, sep = "")
@@ -123,7 +122,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219,
     #url <- paste0(url, "&st=rd|lv:FALSE;fc=000000_;strokeColor=000000")
     #For reference, see https://www.bing.com/api/maps/sdk/mapcontrol/isdk/custommaptilestylesandhexcolor#JS
     #To try stuff out, see https://www.bing.com/api/maps/sdk/mapcontrol/isdk/custommaptilestylesandhexcolor#JS
-    url <- paste0(url, "&st=road|sc:FFFFFF;fc:FFFFFF;lv:0_rl|v:0_trl|v:0_wr|v:0_pp|v:0;lv:0_pl|v:0;lv:0_wt|v:0;lv:0_ar|v:0;lv:0")
+    url <- paste0(url, "&st=road|sc:FFFFFF;fc:FFFFFF;lv:0_rl|v:0;lv:0_trl|v:0;lv:0_wr|v:0;lv:0_pp|v:0;lv:0_pl|v:0;lv:0_wt|v:0;lv:0_ar|v:0;lv:0")
   }
   if (verbose) 
     print(url)

@@ -7,7 +7,7 @@
 GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -122.325, 47.61, -122.107), size = c(640, 640), destfile, 
                          zoom = 12, markers, path = "", 
                          maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight","AerialWithLabels")[1], 
-                         format = c("png", "gif", "jpg","jpg-baseline", "png8", "png32")[1],
+                         format = c("png", "gif", "jpg")[1], #In effect, only png, gif, and jpg are accepted
                          extraURL = "", RETURNIMAGE = TRUE, GRAYSCALE = FALSE, NEWMAP = TRUE, SCALE = 1, apiKey = NULL, 
                          verbose = 0, labels=TRUE) 
 {

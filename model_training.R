@@ -1,3 +1,10 @@
+library(raster) # for classification and extraction to road network
+library(rgdal) # for geographic transformations and projections
+library(magick)
+library(RgoogleMaps)
+
+source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
+
 #==================================================================
 # Train supervised classification
 #==================================================================
@@ -24,7 +31,7 @@ image_write(image_read("test2.png"), path="test2.png", format="png") # not sure 
 r<-brick("traffic_classification_trainingimg.tif")
 r2<-brick("test2.png")
 
-crs(r2) <- WebMercator
+crs(r2) <- CRS("+init=epsg:3857")
 
 #==============================================
 # supervised classification of road conditions
@@ -39,6 +46,7 @@ colnames(RGBvals) <- c("band1","band2","band3")
 # create training data
 pts$class <- factor(pts$class) # convert to factor
 pts <- cbind(pts, RGBvals)
+#View(pts@data)
 sclass <- superClass(r, trainData=pts, responseCol="class",model = "rf", tuneLength = 1) # supervised classification
 
 # plot classified image vs. original image to check

@@ -22,16 +22,18 @@ library(geosphere) # for spherical geometry calculations
 library(raster) # for classification and extraction to road network
 library(rgdal) # for geographic transformations and projections
 library(magick) # for mosaicking static images together
-library(taskscheduleR) # for scheduling hourly image downloads
 library(RStoolbox) # don't need this - perhaps for sclass?
 library(OSMscale) #problably not useful after troubleshooting
 
 #==================================================================
 # Set constants and map parameters
 #==================================================================
-
+setwd('F:/Levin_Lab/stormwater/src/traffic')
 source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
+source("coord_conversion.R")
 load("mapValues")
+load("sclasses") #Load trained classification model
+setwd('F:/Levin_Lab/stormwater/results/bing')
 
 #==================================================================
 # Download static images
@@ -136,22 +138,18 @@ ymin(r) <- ymin(polyproj) # min lat
 
 crs(r) <- WebMercator # Define coordinate system
 
-writeRaster(r, filename=paste(time.stamp, "mosaic_proj.tif", sep=""), format="GTiff", overwrite=TRUE)
-print(Sys.time())
+#writeRaster(r, filename=paste(time.stamp, "mosaic_proj.tif", sep=""), format="GTiff", overwrite=TRUE)
+#print(Sys.time())
 #file.rename(paste(time.stamp, "mosaic_proj.tif", sep=""), "traffic_classification_trainingimg.tif") #for training points
 
 #=================================================
 # Supervised classification of traffic conditions
 #=================================================
-
-load("sclasses") # get trained classification model
 names(r) = c("band1","band2","band3") # give image bands the same names as those used in sclass
 rclass <- predict(r, sclass$model) # classify using model generated from training points
 
 # save as compressed geotiff
-writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", overwrite=TRUE)
+writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)
-
-

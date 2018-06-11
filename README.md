@@ -7,7 +7,7 @@ R script to summarize traffic conditions into a road vector from Bing static map
 ## Files
 
 #### run_script.R
-Holds user parameters for the map and sets task scheduler to automatically run the `traffic_api.R` script. Can't figure out how to get Windows Task Scheduler to run though.
+Holds user parameters for the map and sets task scheduler to automatically run the `traffic_api.R` script. Can't figure out how to get Windows Task Scheduler to run though (via `taskscheduleR`)
 
 #### traffic_api.R
 This is the main script that takes a bounding box for the ROI and a road vector shapefile and returns a road vector with relative traffic conditions averaged over a given period of time. This works by mosaicking static maps from Bing Maps in the ROI, classifying traffic conditions, and averaging those conditions over the desired time period.

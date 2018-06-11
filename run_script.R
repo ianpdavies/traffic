@@ -15,6 +15,8 @@ library(geosphere)
 library(tictoc)
 
 source('coord_conversion.R')
+
+datadir <- 'F:/Levin_Lab/stormwater/data/'
 #==================================================================
 # Set constants and map parameters
 #==================================================================
@@ -24,8 +26,12 @@ source('coord_conversion.R')
 apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 
 # Full extent of area to be covered
-bbox <- c(47.5, -122.5, 48, -122)  # Coordinates are lower left and upper right lat/long (in that order)
-#bbox <- c(47.614086, -122.235819, 47.637687, -122.128015)  # Coordinates are lower left and upper right lat/long (in that order)
+PSwatershed <- readOGR(file.path(datadir, 'NOAA_ERMA_20180601/PugetSoundWtshd/PS_watersheds.shp'))
+PSwatershedbbox <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
+
+
+#bbox <- c(47.5, -122.5, 48, -122)  # Coordinates are lower left and upper right lat/long (in that order)
+bbox <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
 
 # calculate optimal number of images to fetch
 zoom <- 15
@@ -41,27 +47,22 @@ imgs.w <- length(bbox.list.ll.x) #Number of columns
 imgs.h <- length(bbox.list.ll.y) #Number of rows
 
 save(apiKey, zoom, px, 
-     bbox.list.ll.x, bbox.list.ll.x, bbox.list.ll.x, bbox.list.ll.x,
+     bbox.list.ll.x, bbox.list.ll.y, bbox.list.ur.x, bbox.list.ur.y,
      imgs.w, imgs.h, file = "mapValues")
 
 #==================================================================
 # Schedule tasks
 #==================================================================
-tic("Download, mosaic, and georeference")
-source("traffic_api.R") 
-toc()
+# tic("Download, mosaic, and georeference")
+# source("traffic_api.R")
+# toc()
 
-
-
-# want to run the script hourly from 4 AM to 9 PM
-# taskscheduler_create("GetRasters", rscript = "traffic_api.R", schedule = 'HOURLY', 
-#                      starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"))
-# 
-# taskscheduler_create("GetRasters", rscript="traffic_api.R", 
-#                      starttime = format(Sys.time() +2, "%H:%M:%S"), schedule='ONCE')
-# 
-# 
-# taskscheduler_delete("test")
-
+# Run script hourly
+# taskscheduler_create("GetRasters", rscript="F:/Levin_Lab/stormwater/src/traffic/traffic_api.R",
+#                      starttime = format(Sys.time() +55, "%H:%M:%S"), schedule='ONCE')
+# taskscheduler_delete("GetRasters")
+                     
+taskscheduler_create("GetRasters", rscript = "traffic_api.R", schedule = 'HOURLY',
+                     starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"))
 
 

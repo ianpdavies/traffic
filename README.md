@@ -39,4 +39,4 @@ example
 
 ## Authors
 
-**Ian Davies**
+**Ian Davies and Mathis Messager**

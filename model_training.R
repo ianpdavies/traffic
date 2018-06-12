@@ -1,55 +1,65 @@
-# This trains the supervised classification model using training data from a sample image
+library(raster) # for classification and extraction to road network
+library(rgdal) # for geographic transformations and projections
+library(magick)
+library(RgoogleMaps)
+
+source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
 
 #==================================================================
-# Load dependencies and data  
+# Train supervised classification
 #==================================================================
+#Ran 'run_script.R' with c(47.5, -122.5, 48, -122) for bbox, and added to traffic_api.R: file.rename(paste(time.stamp, "mosaic_proj.tif", sep=""), "traffic_classification_trainingimg.tif") 
+#===================================
+# get test images
+apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 
-library(superClass)
-library(sp)
-
-load("training_pts") # load training points selected from training image
-load("test_imgs") # load training image
-
-#==================================================================
-# Download image to test
-#==================================================================
-
+# smaller image to test, 2
 map.test=GetBingMap2( # aerial image
-    mapArea=c(47.591640, -122.324618, 47.598470, -122.315305),
-    maptype="CanvasDark", # use aerial for final because it doesn't have labels
-    # zoom=15,
-    apiKey=apiKey,
-    extraURL="&mapLayer=TrafficFlow",
-    destfile="test.png",
-    verbose=1,
-    labels=FALSE
-  )
+  mapArea=c(47.556256, -122.296838, 47.565523, -122.281560),
+  maptype="CanvasDark", # use aerial for final because it doesn't have labels
+  # zoom=15,
+  apiKey=apiKey,
+  extraURL="&mapLayer=TrafficFlow",
+  destfile="test2.png",
+  verbose=1,
+  labels = FALSE
+)
+#,labels=FALSE
+image_write(image_read("test2.png"), path="test2.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
 
-image_write(image_read("test.png"), path="test.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
-r<-brick("test.png") # load image as rasterbrick
-crs(r) <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs" # set projection to that used by Bing Maps
+# read png as rasterbricks
+r<-brick("traffic_classification_trainingimg.tif")
+r2<-brick("test2.png")
 
-#==================================================================
-# Supervised classification 
-#==================================================================
+crs(r2) <- CRS("+init=epsg:3857")
 
-# # Select training points
-# # If you didn't already have points (loaded earlier) this is how you would select them by clicking on the graphics display
-# 
-# pts<-click(r,n=21,id=TRUE,xy=TRUE,cell=TRUE) # select points
-# pts$class=c("G","G","G", # add text labels
-#              "Y","Y","Y",
-#              "O","O","O",
-#              "R","R","R",
-#              "B","B","B",
-#              "A","A","A",
-#              "W","W","W") 
+#==============================================
+# supervised classification of road conditions
+#==============================================
+# Created > 800 training points in ArcGIS, extract value from raster based on these points
+pts <- readOGR(dsn='training_pts.shp') #Import training points
+pts <- pts[,-1] #Remove Id column
+RGBvals <- extract(r, pts, method='simple') #Get RBG values from training raster at each point's coordinates 
+colnames(RGBvals) <- c("band1","band2","band3")
 
 
-train <- pts[c("x","y")] # extract lat/long of training points
-vals <- data.frame(class=pts$class) # create a dataframe with class labels.
-vals$class <- factor(vals$class) # convert to factor
-train <- SpatialPointsDataFrame(train, vals, proj4string=crs("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs")) # create spatial dataframe with training points
-sclass <- superClass(r, trainData=train, responseCol="class",model = "rf", tuneLength = 1) # supervised classification using random forest
+# create training data
+pts$class <- factor(pts$class) # convert to factor
+pts <- cbind(pts, RGBvals)
+#View(pts@data)
+sclass <- superClass(r, trainData=pts, responseCol="class",model = "rf", tuneLength = 1) # supervised classification
 
-# sclass can be applied to other images to classify them
+# plot classified image vs. original image to check
+m <- rbind(c(1, 2))
+layout(m)
+plotRGB(r)
+plot(sclass$map)
+writeRaster(sclass$map,'training_class_output.tif' , format="GTiff")
+
+# now try using classification on another image
+names(r2) <- names(r) # give dataframe columns (i.e. image bands) the same names
+sclass2 <- predict(r2, sclass$model) # classify using model generated from training points
+plot(sclass2)
+
+save(sclass, sclass2, file="sclasses")
+#load("sclasses")

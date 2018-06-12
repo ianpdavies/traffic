@@ -1,5 +1,6 @@
 # Traffic 2 Vector
 R script to summarize traffic conditions into a road vector from Bing static maps API.
+Forked version by messamat
 
 ## Getting Started
 --

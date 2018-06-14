@@ -8,7 +8,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
                          zoom = 12, markers, path = "", 
                          maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight","AerialWithLabels")[1], 
                          format = c("png", "gif", "jpg")[1], #In effect, only png, gif, and jpg are accepted
-                         extraURL = "", RETURNIMAGE = TRUE, GRAYSCALE = FALSE, NEWMAP = TRUE, SCALE = 1, apiKey = NULL, 
+                         extraURL = "", GRAYSCALE = FALSE, NEWMAP = TRUE, DISK=FALSE, MEMORY=TRUE, SCALE = 1, apiKey = NULL, 
                          verbose = 0, labels=TRUE) 
 {
   if (!(maptype %in% c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight", "AerialWithLabels"))) # got rid of extra space in "Aerial ", added other styles
@@ -72,7 +72,6 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
     lon.center <- mean(lonR)
     center = c(lat.center, lon.center)
     BBOX = list(ll = mapArea[1:2], ur = mapArea[3:4])
-    print(BBOX)
     names(BBOX$ll) = c("lat", "lon")
     names(BBOX$ur) = c("lat", "lon")
     MetaInfo <- list(lat.center = center[1], lon.center = center[2], 
@@ -128,17 +127,23 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
     print(url)
   if (verbose == -1) 
     browser()
-  if (verbose < 2 & NEWMAP) 
+  if (verbose < 2 & NEWMAP & DISK) {
     suppressWarnings(download.file(url, destfile, mode = "wb", 
-                                   quiet = TRUE))
+                                   quiet = TRUE)) #First write
+    if (MEMORY) {
+    myMap <- ReadMapTile(destfile) #Then read
+    return(myMap)
+    }
+  }
+  if (verbose < 2 & NEWMAP & DISK==F & MEMORY) {
+    req <- GET(url) #httr package
+    if (req$status_code != 200) print(req$status_code) #Check whether error in request
+    return(content(req, as='raw')) #Directly parse as PNG
+  }
   if (GRAYSCALE) {
     myTile <- readPNG(destfile, native = FALSE)
     myTile <- RGB2GRAY(myTile)
     writePNG(myTile, destfile)
-  }
-  if (RETURNIMAGE) {
-    myMap <- ReadMapTile(destfile)
-    return(myMap)
   }
   invisible(url)
 }

@@ -138,7 +138,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   if (verbose < 2 & NEWMAP & DISK==F & MEMORY) {
     req <- GET(url) #httr package
     if (req$status_code != 200) print(req$status_code) #Check whether error in request
-    return(content(req, as='raw')) #Directly parse as PNG
+    return(content(req, as='parsed')) #Directly parse as PNG
   }
   if (GRAYSCALE) {
     myTile <- readPNG(destfile, native = FALSE)

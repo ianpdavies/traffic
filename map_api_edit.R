@@ -22,7 +22,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   }
   if (all(c("lat", "lon") %in% names(center))) 
     center = center[c("lat", "lon")]
-  stopifnot(all(size <= 640))
+  stopifnot(all(size <= 1500))
   fileBase <- substring(destfile, 1, nchar(destfile) - 4)
   fileExt <- substring(destfile, nchar(destfile) - 2, nchar(destfile))
   if (is.null(center)) {

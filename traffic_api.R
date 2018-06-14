@@ -15,7 +15,6 @@
 #==================================================================
 # Dependencies
 #==================================================================
-print(Sys.time())
 library(RgoogleMaps) # for accessing Bing Maps API # Need it for XY2LatLon
 library(stringr) # stringr::str_pad for file naming
 library(geosphere) # for spherical geometry calculations
@@ -49,7 +48,7 @@ map.params <- list(maptype="CanvasDark", # parameters needed to construct URL fo
 
 time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
 
-
+tic()
 imgs <- c() # holds images
 coords <- NULL # holds coordinates of each image
 for (i in 1:imgs.h){ #loops over rows
@@ -58,38 +57,44 @@ for (i in 1:imgs.h){ #loops over rows
     extent.img.lr <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ur.x[j], zoom)
     extent.img.ul <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ll.x[j], zoom)
     extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom)
-    extent.img <- c(extent.img.ll, extent.img.ur) #Lower left, upper right coordinates for Bing Map download
+    coords.tmp <- c(extent.img.ul,extent.img.ll,extent.img.lr,extent.img.ur)
     #################Create projected polygon envelopes for each image, to troubleshoot and visualize##########
     # filename <- paste(time.stamp, # time stamp
     #                   str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
     #                   str_pad(i, nchar(imgs.w), pad = "0"),"_envelope")
-    # poly <- as(raster::extent(extent.img[c(2,4,1,3)]),"SpatialPolygons")
+    # poly <- as(raster::extent(coords.tmp[c(4,8,3,7)]),"SpatialPolygons")
     # proj4string(poly) <- CRS("+proj=longlat +datum=WGS84")
     # polydf <- SpatialPolygonsDataFrame(poly, data.frame(ID=filename))
     # writeOGR(polydf ,getwd(),filename,driver="ESRI Shapefile", overwrite_layer = T)
     #####
-    filename <- paste(time.stamp, # time stamp
-                      str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                      str_pad(i, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
-                      ".png", sep="")
-    map <- do.call(GetBingMap2, c(list(mapArea=extent.img,destfile=filename), map.params))# download map
-    imgs <- c(imgs, filename) # list of filenames
-    coords.tmp <- c(extent.img.ul,extent.img.ll,extent.img.lr,extent.img.ur)
-    coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
-    #print(coords.tmp)
+    envelope <- SpatialPoints(list(x=coords.tmp[c(2,4,6,8)],y=coords.tmp[c(1,3,5,7)]))
+    proj4string(envelope) <- CRS("+proj=longlat +datum=WGS84")
+    if (polybound==TRUE & all(is.na(over(spTransform(envelope,CRSobj=CRS(proj4string(PSwatershed))), PSwatershed)))) { #Make sure that tile falls within boundaries of Puget Sound watershed
+      print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
+    } else {
+      filename <- paste(time.stamp, # time stamp
+                        str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                        str_pad(i, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                        ".png", sep="")
+      map <- do.call(GetBingMap2, c(list(mapArea=coords.tmp[c(3,4,7,8)],destfile=filename), map.params))# download map based on lower left and upper right coordinates
+      imgs <- c(imgs, filename) # list of filenames
+      coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
+      #print(coords.tmp)
+    }
   }
 }
 rm(i,j,coords.tmp, map, extent.img) # remove temp objects
+print(paste0('Downloading tiles took ', toc()))
 
 #==================================================================
 # Mosaic images into one raster
 #==================================================================
-
+tic()
 mu<-list(image_read(paste(getwd(), "/", imgs, sep=""))) # get all saved images from files
 
 p<-list() # empty list to hold appended rows of images
 for(i in 1:imgs.h){ # for each row of images, create an element in list p of east-west appended images
-  #print((imgs.w*(i-1)+1):(imgs.w*i))
+  print((imgs.w*(i-1)+1):(imgs.w*i))
   p[[i]] <- image_append(mu[[1]][(imgs.w*(i-1)+1):(imgs.w*i)])
 }
 
@@ -111,7 +116,7 @@ write(paste(time.stamp, "mosaic.png", sep=""), file="image_log.txt", append=TRUE
 file.remove(imgs)
 file.remove(paste0(imgs,'.rda'))
 rm(mu)
-
+print(paste0('Mosaicking took ',toc()))
 #==================================================================
 # Georeference the raster
 #==================================================================
@@ -122,7 +127,7 @@ rm(w)
 envelope <- c(min(coords[,c(2,4,6,8)]),max(coords[,c(2,4,6,8)]),min(coords[,c(1,3,5,7)]), max(coords[,c(1,3,5,7)])) #min lat, max lat, min long, max lon
 
 #Could be simplified to:
-# envelope <- matric(c(min(coords[,c(2,4,6,8)]),max(coords[,c(2,4,6,8)]),
+# envelope <- matrix(c(min(coords[,c(2,4,6,8)]),max(coords[,c(2,4,6,8)]),
 #                       min(coords[,c(1,3,5,7)]), max(coords[,c(1,3,5,7)]),
 #                      nrow=4, byrow=TRUE))
 poly <- as(raster::extent(envelope),"SpatialPolygons")
@@ -145,6 +150,7 @@ crs(r) <- WebMercator # Define coordinate system
 #=================================================
 # Supervised classification of traffic conditions
 #=================================================
+tic()
 names(r) = c("band1","band2","band3") # give image bands the same names as those used in sclass
 rclass <- predict(r, sclass$model) # classify using model generated from training points
 
@@ -153,3 +159,4 @@ writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTi
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)
+print(paste0('Supervised classification and export took',toc()))

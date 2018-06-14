@@ -46,19 +46,25 @@ bbox.list.ll.y <- bbox.list.ur.y + (px-1)
 imgs.w <- length(bbox.list.ll.x) #Number of columns
 imgs.h <- length(bbox.list.ll.y) #Number of rows
 
+WebMercator <- CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext  +no_defs")
+
 save(apiKey, PSwatershed, polybound, zoom, px, 
      bbox.list.ll.x, bbox.list.ll.y, bbox.list.ur.x, bbox.list.ur.y,
-     imgs.w, imgs.h, file = "mapValues")
+     imgs.w, imgs.h, file = "mapValues", WebMercator)
 
 #==================================================================
 # Schedule tasks
 #==================================================================
 source("traffic_api.R")
 
-#For 840 tiles
-#With 500 pixel images, without selective tiling: download 296 sec, mosaic 18 min, classification and export 30 min
-#with 1500 pixel inmages, without selective tiling: download 64 sec, mosaic 5 min, classification and export 30 min
-
+#For 840, 500 pixel tiles
+#With 500 pixel images, without selective tiling: download 296 sec, georeference and mosaic 18 min, classification and export 30 min
+#For 93, 1500 pixel tiles
+#with 1500 pixel images, without selective tiling: download 64 sec, georeference and mosaic 5 min, classification and export 30 min
+#For 93, 1500 pixel tiles
+#with 1500 pixel images, without selective tiling, with in_memory fetch + georeferencing: download and georeference 4 min, mosaic 2.1 min, classification and export 30 min
+#For 93, 1500 pixel tiles
+#with 1500 pixel images, with selective tiling, with in_memory fetch + georeferencing: download and georeference 3 min, mosaic 1.5 min, classification and export 30 min
 
 
 # Run script hourly

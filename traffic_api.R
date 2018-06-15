@@ -69,10 +69,10 @@ for (i in 1:imgs.h){ #loops over rows
      print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
     } else {
     filename <- paste(time.stamp, # time stamp
-                        str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                        str_pad(i, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                        str_pad(i, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                        str_pad(j, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
                         ".tif", sep="")
-    map <- brick(do.call(GetBingMap2, c(list(mapArea=coords.tmp[c(3,4,7,8)],destfile=filename), map.params))) # download map based on lower left and upper right coordinates
+    map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords.tmp[c(3,4,7,8)],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
     ##########ATTEMPT ################
     envelope <- spTransform(envelope, CRSobj=WebMercator)
     #Define extent in Web Mercator coordinates
@@ -81,7 +81,7 @@ for (i in 1:imgs.h){ #loops over rows
     ymax(map) <- ymax(envelope) # max lat
     ymin(map) <- ymin(envelope) # min lat
     crs(map) <- WebMercator # Define coordinate system
-    writeRaster(map, filename, format="GTiff",overwrite=TRUE)
+    writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
     
     imgs <- c(imgs, filename) # list of filenames
     #coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
@@ -104,15 +104,13 @@ toc()
 file.remove(imgs)
 file.remove(paste0(imgs,'.rda'))
 
-vals <- unique(mosaic)
-
 #=================================================
 # Supervised classification of traffic conditions
 #=================================================
 tic()
-names(r) = c("band1","band2","band3") # give image bands the same names as those used in sclass
-rclass <- predict(r, sclass$model) # classify using model generated from training points
-
+names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
+rclass <- predict(mosaic, sclass$model) # classify using model generated from training points
+toc()
 # save as compressed geotiff
 writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
 

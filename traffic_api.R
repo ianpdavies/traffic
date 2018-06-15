@@ -52,56 +52,38 @@ time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an 
 
 tic()
 imgs <- c() # holds images
-coords <- NULL # holds coordinates of each image
-for (i in 1:imgs.h){ #loops over rows
-  for(j in 1:imgs.w){ # loops over columns
-    print(100*(imgs.w*(i-1)+j)/(imgs.w*imgs.h))
-    extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of four corners of each image (for later georeferencing)
-    extent.img.lr <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ur.x[j], zoom)
-    extent.img.ul <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ll.x[j], zoom)
-    extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom)
-    coords.tmp <- c(extent.img.ul,extent.img.ll,extent.img.lr,extent.img.ur)
-    envelope <- as(raster::extent(coords.tmp[c(4,8,3,7)]),"SpatialPolygons")
-    proj4string(envelope) <- CRS("+proj=longlat +datum=WGS84")
-    if (polybound==TRUE & all(is.na(over(spTransform(envelope,CRSobj=CRS(proj4string(PSwatershed))), PSwatershed)))) { #Make sure that tile falls within boundaries of Puget Sound watershed
-     print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
-    } else {
-    filename <- paste(time.stamp, # time stamp
-                        str_pad(i, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                        str_pad(j, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
-                        ".tif", sep="")
-    map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords.tmp[c(3,4,7,8)],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
-    ##########ATTEMPT ################
-    envelope <- spTransform(envelope, CRSobj=WebMercator)
-    #Define extent in Web Mercator coordinates
-    xmax(map) <- xmax(envelope) # max lon
-    xmin(map) <- xmin(envelope) # min lon
-    ymax(map) <- ymax(envelope) # max lat
-    ymin(map) <- ymin(envelope) # min lat
-    crs(map) <- WebMercator # Define coordinate system
-    
-    writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
-    
-    imgs <- c(imgs, filename) # list of filenames
-    #coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
-    #print(coords.tmp)
-    }
-  }
+for (i in 1:nrow(coords)) {
+  print(i)
+  filename <- paste(time.stamp, # time stamp
+                      str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                      str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                      ".tif", sep="")
+  map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
+
+  #Define extent in Web Mercator coordinates
+  xmin(map) <- coords_mercator[i,'xmin'] 
+  xmax(map) <- coords_mercator[i,'xmax'] 
+  ymin(map) <- coords_mercator[i,'ymin'] 
+  ymax(map) <- coords_mercator[i,'ymax'] 
+  crs(map) <- WebMercator # Define coordinate system
+
+  writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
+  imgs <- c(imgs, filename) # list of filenames
 }
-rm(i,j,coords.tmp, map) # remove temp objects
+rm(i, map) # remove temp objects
 print(paste0('Downloading tiles took ', toc()))
 
 #==================================================================
 # Mosaic images into one raster
 #==================================================================
 tic()
-#mu<-list(image_read(paste0(getwd(), "/", imgs))) # get all saved images from files
 mosaic <- mosaic_rasters(paste0(getwd(), "/", imgs), paste0(time.stamp, "mosaic.tif"), output_Raster=T)
-toc()
-
 #Remove tiles
 file.remove(imgs)
 file.remove(paste0(imgs,'.rda'))
+toc()
+
+#file.rename(paste0(time.stamp, "mosaic.tif"), "'F:/Levin_Lab/stormwater/src/traffic/data/traffic_classification_trainingimg.tif") 
 
 #=================================================
 # Supervised classification of traffic conditions
@@ -110,41 +92,8 @@ tic()
 names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
 rclass <- predict(mosaic, sclass$model) # classify using model generated from training points
 
-Sys.time()
-tic()
-mosaicrange <- max(mosaic)-min(mosaic) #Took 2 minutes
-rclass[mosaicrange<=50] <- 1
-toc()
-
-###### Try multiple majority filter methods ######
-#spatial.tools::rasterEngine
-library(spatial.tools)
-majority_smoother <- function(x) {
-  #Assumes 3-d array
-  uniquex <- unique(x)
-  uniquex[which.max(tabulate(match(x,uniquex)))]
-}
-tic()
-sfQuickInit()
-rclassmajority <- rasterEngine(x=rclass, fun=majority_smoother, window_dims=c(3,3))
-sfQuickStop()
-toc()
-
-#raster::focal
-tic()
-rclassmajority <- focal(rclass, w=matrix(1,3,3), fun=modal, pad=T, na.rm=T)
-toc()
-writeRaster(rclassmajority, filename=paste(time.stamp, "classmaj.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
-
-#python arcpy
-
-
-
-
 # save as compressed geotiff
 writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
-
-
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)

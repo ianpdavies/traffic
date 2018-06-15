@@ -20,11 +20,9 @@ library(stringr) # stringr::str_pad for file naming
 library(geosphere) # for spherical geometry calculations
 library(raster) # for classification and extraction to road network
 library(rgdal) # for geographic transformations and projections
-library(magick) # for mosaicking static images together
 library(RStoolbox) # don't need this - perhaps for sclass?
-library(OSMscale) #problably not useful after troubleshooting
 library(httr) #for in-memory download of API image
-library(gdalUtils)
+library(gdalUtils) #for mosaicking
 
 #==================================================================
 # Set constants and map parameters
@@ -81,6 +79,7 @@ for (i in 1:imgs.h){ #loops over rows
     ymax(map) <- ymax(envelope) # max lat
     ymin(map) <- ymin(envelope) # min lat
     crs(map) <- WebMercator # Define coordinate system
+    
     writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
     
     imgs <- c(imgs, filename) # list of filenames
@@ -110,9 +109,42 @@ file.remove(paste0(imgs,'.rda'))
 tic()
 names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
 rclass <- predict(mosaic, sclass$model) # classify using model generated from training points
+
+Sys.time()
+tic()
+mosaicrange <- max(mosaic)-min(mosaic) #Took 2 minutes
+rclass[mosaicrange<=50] <- 1
 toc()
+
+###### Try multiple majority filter methods ######
+#spatial.tools::rasterEngine
+library(spatial.tools)
+majority_smoother <- function(x) {
+  #Assumes 3-d array
+  uniquex <- unique(x)
+  uniquex[which.max(tabulate(match(x,uniquex)))]
+}
+tic()
+sfQuickInit()
+rclassmajority <- rasterEngine(x=rclass, fun=majority_smoother, window_dims=c(3,3))
+sfQuickStop()
+toc()
+
+#raster::focal
+tic()
+rclassmajority <- focal(rclass, w=matrix(1,3,3), fun=modal, pad=T, na.rm=T)
+toc()
+writeRaster(rclassmajority, filename=paste(time.stamp, "classmaj.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
+
+#python arcpy
+
+
+
+
 # save as compressed geotiff
 writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
+
+
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)

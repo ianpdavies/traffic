@@ -20,9 +20,10 @@ library(stringr) # stringr::str_pad for file naming
 library(geosphere) # for spherical geometry calculations
 library(raster) # for classification and extraction to road network
 library(rgdal) # for geographic transformations and projections
-library(magick) # for mosaicking static images together
 library(RStoolbox) # don't need this - perhaps for sclass?
-library(OSMscale) #problably not useful after troubleshooting
+library(httr) #for in-memory download of API image
+library(gdalUtils) #for mosaicking
+library(tictoc)
 
 #==================================================================
 # Set constants and map parameters
@@ -42,120 +43,58 @@ map.params <- list(maptype="CanvasDark", # parameters needed to construct URL fo
                    zoom = zoom,
                    apiKey=apiKey,
                    extraURL="&mapLayer=TrafficFlow",
-                   verbose=1,
+                   verbose=0,
                    size=px,
+                   DISK=FALSE,
+                   MEMORY=TRUE,
                    labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
 
 time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
 
 tic()
 imgs <- c() # holds images
-coords <- NULL # holds coordinates of each image
-for (i in 1:imgs.h){ #loops over rows
-  for(j in 1:imgs.w){ # loops over columns
-    extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of four corners of each image (for later georeferencing)
-    extent.img.lr <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ur.x[j], zoom)
-    extent.img.ul <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ll.x[j], zoom)
-    extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom)
-    coords.tmp <- c(extent.img.ul,extent.img.ll,extent.img.lr,extent.img.ur)
-    #################Create projected polygon envelopes for each image, to troubleshoot and visualize##########
-    # filename <- paste(time.stamp, # time stamp
-    #                   str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-    #                   str_pad(i, nchar(imgs.w), pad = "0"),"_envelope")
-    # poly <- as(raster::extent(coords.tmp[c(4,8,3,7)]),"SpatialPolygons")
-    # proj4string(poly) <- CRS("+proj=longlat +datum=WGS84")
-    # polydf <- SpatialPolygonsDataFrame(poly, data.frame(ID=filename))
-    # writeOGR(polydf ,getwd(),filename,driver="ESRI Shapefile", overwrite_layer = T)
-    #####
-    envelope <- SpatialPoints(list(x=coords.tmp[c(2,4,6,8)],y=coords.tmp[c(1,3,5,7)]))
-    proj4string(envelope) <- CRS("+proj=longlat +datum=WGS84")
-    if (polybound==TRUE & all(is.na(over(spTransform(envelope,CRSobj=CRS(proj4string(PSwatershed))), PSwatershed)))) { #Make sure that tile falls within boundaries of Puget Sound watershed
-      print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
-    } else {
-      filename <- paste(time.stamp, # time stamp
-                        str_pad(j, nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                        str_pad(i, nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
-                        ".png", sep="")
-      map <- do.call(GetBingMap2, c(list(mapArea=coords.tmp[c(3,4,7,8)],destfile=filename), map.params))# download map based on lower left and upper right coordinates
-      imgs <- c(imgs, filename) # list of filenames
-      coords <- rbind(coords, coords.tmp) # upper left, lower left, lower right, upper right
-      #print(coords.tmp)
-    }
-  }
+ntiles <- nrow(coords)
+for (i in 1:ntiles) {
+  print(i/ntiles)
+  filename <- paste(time.stamp, # time stamp
+                      str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                      str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                      ".tif", sep="")
+  map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
+
+  #Define extent in Web Mercator coordinates
+  xmin(map) <- coords_mercator[i,'xmin'] 
+  xmax(map) <- coords_mercator[i,'xmax'] 
+  ymin(map) <- coords_mercator[i,'ymin'] 
+  ymax(map) <- coords_mercator[i,'ymax'] 
+  crs(map) <- WebMercator # Define coordinate system
+
+  writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
+  imgs <- c(imgs, filename) # list of filenames
 }
-rm(i,j,coords.tmp, map, extent.img) # remove temp objects
+rm(i, map) # remove temp objects
 print(paste0('Downloading tiles took ', toc()))
 
 #==================================================================
 # Mosaic images into one raster
 #==================================================================
 tic()
-mu<-list(image_read(paste(getwd(), "/", imgs, sep=""))) # get all saved images from files
-
-p<-list() # empty list to hold appended rows of images
-for(i in 1:imgs.h){ # for each row of images, create an element in list p of east-west appended images
-  print((imgs.w*(i-1)+1):(imgs.w*i))
-  p[[i]] <- image_append(mu[[1]][(imgs.w*(i-1)+1):(imgs.w*i)])
-}
-
-w <- p[[1]] # create mosaicked image starting with first row 
-if(imgs.h > 1){ # if there's more than one row of images, append the other rows
-  for(j in 2:imgs.h){
-    w <- image_append(c(w, p[[j]]), stack=TRUE)
-  }
-}
-rm(i,j)
-
-# save mosaic raster
-image_write(w, path=paste(time.stamp, "mosaic.png", sep=""), format="png")
-
-# create log of mosaic image names
-write(paste(time.stamp, "mosaic.png", sep=""), file="image_log.txt", append=TRUE)
-
-# delete image pieces
+mosaic <- mosaic_rasters(paste0(getwd(), "/", imgs), paste0(time.stamp, "mosaic.tif"), output_Raster=T)
+#Remove tiles
 file.remove(imgs)
 file.remove(paste0(imgs,'.rda'))
-rm(mu)
-print(paste0('Mosaicking took ',toc()))
-#==================================================================
-# Georeference the raster
-#==================================================================
-r<-brick(paste(time.stamp, "mosaic.png", sep=""), package="Raster") # convert mosaic image to a rasterbrick object
-rm(w)
-#Create a polygon envelope with long-lat of actual bounding box, project coordinates to Bing Map projected coordinate system (Web Mercator)
-#Then use it as a template to georeference image 
-envelope <- c(min(coords[,c(2,4,6,8)]),max(coords[,c(2,4,6,8)]),min(coords[,c(1,3,5,7)]), max(coords[,c(1,3,5,7)])) #min lat, max lat, min long, max lon
+toc()
 
-#Could be simplified to:
-# envelope <- matrix(c(min(coords[,c(2,4,6,8)]),max(coords[,c(2,4,6,8)]),
-#                       min(coords[,c(1,3,5,7)]), max(coords[,c(1,3,5,7)]),
-#                      nrow=4, byrow=TRUE))
-poly <- as(raster::extent(envelope),"SpatialPolygons")
-proj4string(poly) <- CRS("+proj=longlat +datum=WGS84")
-WebMercator <- CRS("+init=epsg:3857")
-polyproj <- spTransform(poly, CRSobj=WebMercator)
-
-#Define extent in Web Mercator coordinates
-xmax(r) <- xmax(polyproj) # max lon
-xmin(r) <- xmin(polyproj) # min lon
-ymax(r) <- ymax(polyproj) # max lat
-ymin(r) <- ymin(polyproj) # min lat
-
-crs(r) <- WebMercator # Define coordinate system
-
-#writeRaster(r, filename=paste(time.stamp, "mosaic_proj.tif", sep=""), format="GTiff", overwrite=TRUE)
-#print(Sys.time())
-#file.rename(paste(time.stamp, "mosaic_proj.tif", sep=""), "traffic_classification_trainingimg.tif") #for training points
+#file.rename(paste0(time.stamp, "mosaic.tif"), "'F:/Levin_Lab/stormwater/src/traffic/data/traffic_classification_trainingimg.tif") 
 
 #=================================================
 # Supervised classification of traffic conditions
 #=================================================
 tic()
-names(r) = c("band1","band2","band3") # give image bands the same names as those used in sclass
-rclass <- predict(r, sclass$model) # classify using model generated from training points
-
+names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
+rclass <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
 # save as compressed geotiff
-writeRaster(rclass, filename=paste(time.stamp, "class.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
+writeRaster(rclass, filename=paste(time.stamp, "class_mlc.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)

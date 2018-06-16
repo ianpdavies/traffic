@@ -8,7 +8,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
                          zoom = 12, markers, path = "", 
                          maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight","AerialWithLabels")[1], 
                          format = c("png", "gif", "jpg")[1], #In effect, only png, gif, and jpg are accepted
-                         extraURL = "", RETURNIMAGE = TRUE, GRAYSCALE = FALSE, NEWMAP = TRUE, SCALE = 1, apiKey = NULL, 
+                         extraURL = "", GRAYSCALE = FALSE, NEWMAP = TRUE, DISK=FALSE, MEMORY=TRUE, SCALE = 1, apiKey = NULL, 
                          verbose = 0, labels=TRUE) 
 {
   if (!(maptype %in% c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight", "AerialWithLabels"))) # got rid of extra space in "Aerial ", added other styles
@@ -67,12 +67,11 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   else if (!missing(mapArea)) {
     latR = range(mapArea[c(1, 3)])
     lonR = range(mapArea[c(2, 4)])
-    zoom <- min(MaxZoom(latR, lonR, c(size,size)))
+    # zoom <- min(MaxZoom(latR, lonR, c(size,size)))
     lat.center <- mean(latR)
     lon.center <- mean(lonR)
     center = c(lat.center, lon.center)
     BBOX = list(ll = mapArea[1:2], ur = mapArea[3:4])
-    print(BBOX)
     names(BBOX$ll) = c("lat", "lon")
     names(BBOX$ur) = c("lat", "lon")
     MetaInfo <- list(lat.center = center[1], lon.center = center[2], 
@@ -118,27 +117,33 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   if(labels==FALSE & maptype=="Aerial"){ # added this to catch error
     stop("Can't retrieve Aerial map with labels=FALSE")
   }
-  if(labels==FALSE){ # added custom map style without labels to URL
+  if(maptype=='CanvasDark' & labels==FALSE){ # added custom map style without labels to URL
     #url <- paste0(url, "&st=rd|lv:FALSE;fc=000000_;strokeColor=000000")
     #For reference, see https://www.bing.com/api/maps/sdk/mapcontrol/isdk/custommaptilestylesandhexcolor#JS
     #To try stuff out, see https://www.bing.com/api/maps/sdk/mapcontrol/isdk/custommaptilestylesandhexcolor#JS
-    url <- paste0(url, "&st=road|sc:FFFFFF;fc:FFFFFF;lv:0_rl|v:0;lv:0_trl|v:0;lv:0_wr|v:0;lv:0_pp|v:0;lv:0_pl|v:0;lv:0_wt|v:0;lv:0_ar|v:0;lv:0")
+    url <- paste0(url, "&st=road|sc:000000;fc:000000;lv:0_rl|v:0;lv:0_trl|v:0;lv:0_wr|v:0;lv:0_pp|v:0;lv:0_pl|v:0;lv:0_wt|v:0;lv:0_ar|v:0;lv:0")
   }
   if (verbose) 
     print(url)
   if (verbose == -1) 
     browser()
-  if (verbose < 2 & NEWMAP) 
+  if (verbose < 2 & NEWMAP & DISK) {
     suppressWarnings(download.file(url, destfile, mode = "wb", 
-                                   quiet = TRUE))
+                                   quiet = TRUE)) #First write
+    if (MEMORY) {
+    myMap <- ReadMapTile(destfile) #Then read
+    return(myMap)
+    }
+  }
+  if (verbose < 2 & NEWMAP & DISK==F & MEMORY) {
+    req <- GET(url) #httr package
+    if (req$status_code != 200) print(req$status_code) #Check whether error in request
+    return(content(req, as='parsed')) #Directly parse as PNG
+  }
   if (GRAYSCALE) {
     myTile <- readPNG(destfile, native = FALSE)
     myTile <- RGB2GRAY(myTile)
     writePNG(myTile, destfile)
-  }
-  if (RETURNIMAGE) {
-    myMap <- ReadMapTile(destfile)
-    return(myMap)
   }
   invisible(url)
 }

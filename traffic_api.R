@@ -53,8 +53,9 @@ time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an 
 
 tic()
 imgs <- c() # holds images
-for (i in 1:nrow(coords)) {
-  print(i)
+ntiles <- nrow(coords)
+for (i in 1:ntiles) {
+  print(i/ntiles)
   filename <- paste(time.stamp, # time stamp
                       str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
                       str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number

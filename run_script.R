@@ -26,12 +26,12 @@ datadir <- 'F:/Levin_Lab/stormwater/results/'
 apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 
 # Full extent of area to be covered
-PSwatershed <- readOGR(file.path(datadir, 'PSwtshd_dissolve.shp'))
+PSwatershed <- readOGR(file.path(datadir, 'PSwtshd_extrude.shp'))
 PSwatershedbbox <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
 polybound <- TRUE
 
-bbox <- c(47.5,-122.7,47.8,-122) # Coordinates are lower left and upper right lat/long (in that order)
-#bbox <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
+#bbox <- c(47.5,-122.7,47.8,-122) # Coordinates are lower left and upper right lat/long (in that order)
+bbox <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
 
 # calculate optimal number of images to fetch
 zoom <- 15
@@ -83,12 +83,11 @@ save(apiKey,  WebMercator, PSwatershed, polybound, zoom, px,coords,coords_mercat
 #==================================================================
 # Schedule tasks
 #==================================================================
+source('traffic_api.R')
 # Run script hourly
 # taskscheduler_create("GetRasters", rscript="F:/Levin_Lab/stormwater/src/traffic/traffic_api.R",
 #                      starttime = format(Sys.time() +55, "%H:%M:%S"), schedule='ONCE')
 # taskscheduler_delete("GetRasters")
-                     
-taskscheduler_create("GetRasters", rscript = "traffic_api.R", schedule = 'HOURLY',
-                     starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"))
-
-
+#                      
+# taskscheduler_create("GetRasters", rscript = "traffic_api.R", schedule = 'HOURLY',
+#                      starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"))

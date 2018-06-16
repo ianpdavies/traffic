@@ -2,13 +2,17 @@ library(raster) # for classification and extraction to road network
 library(rgdal) # for geographic transformations and projections
 library(magick)
 library(RgoogleMaps)
+library(httr) #for in-memory download of API image
+library(RStoolbox) 
 
+setwd('F:/Levin_Lab/stormwater/src/traffic')
 source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
+setwd('F:/Levin_Lab/stormwater/data')
 
 #==================================================================
 # Train supervised classification
 #==================================================================
-#Ran 'run_script.R' with c(47.5, -122.5, 48, -122) for bbox, and added to traffic_api.R: file.rename(paste(time.stamp, "mosaic_proj.tif", sep=""), "traffic_classification_trainingimg.tif") 
+#Ran 'run_script.R' with c(47.5,-122.7,47.8,-122) for bbox, 180615_12_08, and added to traffic_api.R: file.rename(paste(time.stamp, "mosaic.tif", sep=""), "traffic_classification_trainingimg.tif") 
 #===================================
 # get test images
 apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
@@ -17,49 +21,46 @@ apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 map.test=GetBingMap2( # aerial image
   mapArea=c(47.556256, -122.296838, 47.565523, -122.281560),
   maptype="CanvasDark", # use aerial for final because it doesn't have labels
-  # zoom=15,
+  zoom=15,
   apiKey=apiKey,
   extraURL="&mapLayer=TrafficFlow",
   destfile="test2.png",
-  verbose=1,
+  verbose=0,
+  size=1500,
+  DISK=FALSE,
+  MEMORY=TRUE,
   labels = FALSE
 )
-#,labels=FALSE
-image_write(image_read("test2.png"), path="test2.png", format="png") # not sure why we have to do this. otherwise, just using brick("test.png") results in 1 band rasterbrick
 
 # read png as rasterbricks
 r<-brick("traffic_classification_trainingimg.tif")
-r2<-brick("test2.png")
-
-crs(r2) <- CRS("+init=epsg:3857")
-
+names(r) <- c("band1","band2","band3")
 #==============================================
 # supervised classification of road conditions
 #==============================================
-# Created > 800 training points in ArcGIS, extract value from raster based on these points
-pts <- readOGR(dsn='training_pts.shp') #Import training points
+# Created > 700 training points in ArcGIS, extract value from raster based on these points
+pts <- readOGR(dsn='trainings_pts.shp') #Import training points
 pts <- pts[,-1] #Remove Id column
+pts <- spTransform(pts, crs(r))
 RGBvals <- extract(r, pts, method='simple') #Get RBG values from training raster at each point's coordinates 
 colnames(RGBvals) <- c("band1","band2","band3")
-
-
-# create training data
 pts$class <- factor(pts$class) # convert to factor
 pts <- cbind(pts, RGBvals)
-#View(pts@data)
-sclass <- superClass(r, trainData=pts, responseCol="class",model = "rf", tuneLength = 1) # supervised classification
 
+####Random forest model###
+sclass_rf <- superClass(r, trainData=pts, responseCol="class",model = "rf", tuneLength = 1, kfold=5) # supervised classification
+sclass_rf$modelFit
 # plot classified image vs. original image to check
 m <- rbind(c(1, 2))
 layout(m)
 plotRGB(r)
-plot(sclass$map)
-writeRaster(sclass$map,'training_class_output.tif' , format="GTiff")
+plot(sclass_rf$map)
+writeRaster(sclass_rf$map,'training_class_output_rf.tif' , format="GTiff", overwrite=T)
 
-# now try using classification on another image
-names(r2) <- names(r) # give dataframe columns (i.e. image bands) the same names
-sclass2 <- predict(r2, sclass$model) # classify using model generated from training points
-plot(sclass2)
+###MLC###
+sclass_mlc <- superClass(r, trainData=pts, responseCol="class",model = "mlc", tuneLength = 1, kfold=5) # supervised classification
+sclass_mlc$modelFit
+writeRaster(sclass_mlc$map,'training_class_output_mc.tif' , format="GTiff", overwrite=T)
 
-save(sclass, sclass2, file="sclasses")
+save(sclass_rf, sclass_mlc, file="sclasses")
 #load("sclasses")

@@ -83,34 +83,6 @@ save(apiKey,  WebMercator, PSwatershed, polybound, zoom, px,coords,coords_mercat
 #==================================================================
 # Schedule tasks
 #==================================================================
-source("traffic_api.R")
-
-#For 840, 500 pixel tiles
-#With 500 pixel images, without selective tiling: 
-# download 5 min, georeference and mosaic 18 min, classification and export 30 min
-#For 93, 1500 pixel tiles
-#with 1500 pixel images, without selective tiling: 
-# download 64 sec, georeference and mosaic 5 min
-
-#with 1500 pixel images, without selective tiling, with in_memory fetch + georeferencing: 
-# download and georeference 4 min, mosaic 2.1 min
-
-#with 1500 pixel images, with selective tiling, with in_memory fetch + georeferencing: 
-# download and georeference 3 min, mosaic 1.5 min
-
-#with 1500 pixel images, with selective tiling, with in_memory fetch + georeferencing, output as INT1U: 
-# download and georeference 3 min, mosaic 1.5 min, classification and export 3.5 min - mosaicked file is 4x smaller
-
-###
-#raster::focal 3x3 modal: 15 min
-#spatial.tools::rasterEngine 3x3 custom mode: stopped after 20 min
-#
-
-###Run predict on another extent
-#Predict with random forest: 208 sec
-#Predict with maximum likelihood: 172 sec
-
-
 # Run script hourly
 # taskscheduler_create("GetRasters", rscript="F:/Levin_Lab/stormwater/src/traffic/traffic_api.R",
 #                      starttime = format(Sys.time() +55, "%H:%M:%S"), schedule='ONCE')

@@ -106,6 +106,10 @@ source("traffic_api.R")
 #spatial.tools::rasterEngine 3x3 custom mode: stopped after 20 min
 #
 
+###Run predict on another extent
+#Predict with random forest: 208 sec
+#Predict with maximum likelihood: 172 sec
+
 
 # Run script hourly
 # taskscheduler_create("GetRasters", rscript="F:/Levin_Lab/stormwater/src/traffic/traffic_api.R",

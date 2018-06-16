@@ -5,7 +5,8 @@ library(RgoogleMaps)
 library(httr) #for in-memory download of API image
 library(RStoolbox) 
 
-setwd('F:/Levin_Lab/stormwater/src/traffic')
+src <- 'F:/Levin_Lab/stormwater/src/traffic'
+setwd(src)
 source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
 setwd('F:/Levin_Lab/stormwater/data')
 
@@ -62,5 +63,6 @@ sclass_mlc <- superClass(r, trainData=pts, responseCol="class",model = "mlc", tu
 sclass_mlc$modelFit
 writeRaster(sclass_mlc$map,'training_class_output_mc.tif' , format="GTiff", overwrite=T)
 
-save(sclass_rf, sclass_mlc, file="sclasses")
+setwd(src)
+save(sclass_mlc, file="sclasses")
 #load("sclasses")

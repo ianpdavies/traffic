@@ -91,16 +91,9 @@ toc()
 #=================================================
 tic()
 names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
-rclass <- predict(mosaic, sclass_rf$model) # classify using model generated from training points
-# save as compressed geotiff
-writeRaster(rclass, filename=paste(time.stamp, "class_rf.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
-toc()
-
-tic()
 rclass <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
 # save as compressed geotiff
 writeRaster(rclass, filename=paste(time.stamp, "class_mlc.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
-toc()
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)

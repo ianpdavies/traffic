@@ -95,6 +95,7 @@ names(mosaic) = c("band1","band2","band3") # give image bands the same names as 
 rclass <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
 # save as compressed geotiff
 writeRaster(rclass, filename=paste(time.stamp, "class_mlc.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
+file.remove(paste0(time.stamp, "mosaic.tif"))
 
 # create log of classified image names
 write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)

@@ -28,12 +28,12 @@ library(tictoc)
 #==================================================================
 # Set constants and map parameters
 #==================================================================
-setwd('F:/Levin_Lab/stormwater/src/traffic')
-source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
-source("coord_conversion.R")
-load("mapValues")
-load("sclasses") #Load trained classification model
-setwd('F:/Levin_Lab/stormwater/results/bing')
+src <- 'F:/Levin_Lab/stormwater/src/traffic'
+source(file.path(src,"map_api_edit.R")) # edited function GetBingMaps from package `RGoogleMaps`
+source(file.path(src,"coord_conversion.R"))
+load(file.path(src,"mapValues"))
+load(file.path(src,"sclasses")) #Load trained classification model
+res <- 'F:/Levin_Lab/stormwater/results/bingtest'
 
 #==================================================================
 # Download static images
@@ -56,10 +56,11 @@ imgs <- c() # holds images
 ntiles <- nrow(coords)
 for (i in 1:ntiles) {
   print(i/ntiles)
-  filename <- paste(time.stamp, # time stamp
-                      str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                      str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
-                      ".tif", sep="")
+  filename <- file.path(res,
+                        paste(time.stamp, # time stamp
+                              str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                              str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                              ".tif", sep=""))
   map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
 
   #Define extent in Web Mercator coordinates
@@ -68,21 +69,25 @@ for (i in 1:ntiles) {
   ymin(map) <- coords_mercator[i,'ymin'] 
   ymax(map) <- coords_mercator[i,'ymax'] 
   crs(map) <- WebMercator # Define coordinate system
-
+  
+  
+  
   writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
   imgs <- c(imgs, filename) # list of filenames
 }
 rm(i, map) # remove temp objects
-print(paste0('Downloading tiles took ', toc()))
+print('Done downloading tiles')
+toc()
 
 #==================================================================
 # Mosaic images into one raster
 #==================================================================
 tic()
-mosaic <- mosaic_rasters(paste0(getwd(), "/", imgs), paste0(time.stamp, "mosaic.tif"), output_Raster=T)
+mosaic <- mosaic_rasters(imgs, file.path(res, paste0(time.stamp, "mosaic.tif")), output_Raster=T, force_ot="Byte")
 #Remove tiles
 file.remove(imgs)
 file.remove(paste0(imgs,'.rda'))
+print('Done mosaicking')
 toc()
 
 #file.rename(paste0(time.stamp, "mosaic.tif"), "'F:/Levin_Lab/stormwater/src/traffic/data/traffic_classification_trainingimg.tif") 
@@ -90,13 +95,18 @@ toc()
 #=================================================
 # Supervised classification of traffic conditions
 #=================================================
+Sys.time()
 tic()
 names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
-rclass <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
+r_class <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
+# Reclassify
+#reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,NA,NA,NA,2,3,NA,1), ncol=2)
+#r_reclassified <- reclassify(r_class, reclas) 
 # save as compressed geotiff
-writeRaster(rclass, filename=paste(time.stamp, "class_mlc.tif", sep=""), format="GTiff", datatype='INT2U',overwrite=TRUE)
-file.remove(paste0(time.stamp, "mosaic.tif"))
+writeRaster(r_class, filename=file.path(res,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U',overwrite=TRUE)
+file.remove(file.path(res,paste0(time.stamp, "mosaic.tif")))
 
 # create log of classified image names
-write(paste(time.stamp, "class.tif", sep=""), file="classified_image_log.txt", append=TRUE)
-print(paste0('Supervised classification and export took',toc()))
+write(file.path(res, paste(time.stamp, "class.tif", sep="")), file="classified_image_log.txt", append=TRUE)
+print('Done classifying')
+toc()

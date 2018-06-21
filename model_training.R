@@ -27,7 +27,7 @@ map.test=GetBingMap2( # aerial image
   extraURL="&mapLayer=TrafficFlow",
   destfile="test2.png",
   verbose=0,
-  size=1500,
+  size=c(2000,1500),
   DISK=FALSE,
   MEMORY=TRUE,
   labels = FALSE
@@ -65,4 +65,12 @@ writeRaster(sclass_mlc$map,'training_class_output_mc.tif' , format="GTiff", over
 
 setwd(src)
 save(sclass_mlc, file="sclasses")
-#load("sclasses")
+
+###Decrease number of points (and so superClass)###
+load("sclasses")
+pts_reduce <- pts[which(!duplicated(as.data.frame(pts)[,c('band1','band2','band3')])),]
+sclass_mlc_reduce <- superClass(r, trainData=pts_reduce, responseCol="class",model = "mlc", tuneLength = 1, kfold=5) # supervised classification
+sclass_mlc_reduce$modelFit
+writeRaster(sclass_mlc_reduce$map,'training_class_output_mc_reduce.tif' , format="GTiff", overwrite=T)
+
+

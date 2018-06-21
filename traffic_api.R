@@ -44,8 +44,8 @@ map.params <- list(maptype="CanvasDark", # parameters needed to construct URL fo
                    apiKey=apiKey,
                    extraURL="&mapLayer=TrafficFlow",
                    verbose=0,
-                   size=px,
-                   DISK=FALSE,
+                   size=size,
+                   DISK=F,
                    MEMORY=TRUE,
                    labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
 
@@ -55,14 +55,31 @@ tic()
 imgs <- c() # holds images
 ntiles <- nrow(coords)
 for (i in 1:ntiles) {
-  print(i/ntiles)
+  print(100*i/ntiles)
   filename <- file.path(res,
                         paste(time.stamp, # time stamp
                               str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
                               str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
                               ".tif", sep=""))
-  map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
+  #map <- 255L*brick(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L # download map based on lower left and upper right coordinates
+library(microbenchmark)
+mbm = microbenchmark(
+  pngonly = png::readPNG(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params))), # download map based on lower left and upper right coordinates
+  png255 =  255L*png::readPNG(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L, # download map based on lower left and upper right coordinates
+  png255brik = brick(255L*png::readPNG(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))-1L),
+  pngbrik = brick(png::readPNG(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params)))), # download map based on lower left and upper right coordinates
+  pngbrik255 = 255L*brick(png::readPNG(do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params))))-1L, # download map based on lower left and upper right coordinates
+  times=50
+)
 
+# Unit: milliseconds
+# expr       min        lq      mean    median        uq       max neval cld
+# pngonly  308.8970  318.8245  342.7628  325.6337  343.1991  947.9166    50 a  
+# png255  332.8342  342.0938  354.2143  351.5722  359.7254  395.7102    50 a  
+# png255brik  639.7038  659.0885  762.4434  686.9106  808.1526 1212.1356    50  b 
+# pngbrik  610.1267  628.4927  730.4718  641.0237  717.5628 1254.1846    50  b 
+# pngbrik255 1149.9094 1183.1410 1387.9711 1267.4968 1552.3021 2487.8281    50   c
+  
   #Define extent in Web Mercator coordinates
   xmin(map) <- coords_mercator[i,'xmin'] 
   xmax(map) <- coords_mercator[i,'xmax'] 
@@ -70,9 +87,7 @@ for (i in 1:ntiles) {
   ymax(map) <- coords_mercator[i,'ymax'] 
   crs(map) <- WebMercator # Define coordinate system
   
-  
-  
-  writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
+  writeRaster(map, filename, format="GTiff",datatype='Float32', overwrite=TRUE)
   imgs <- c(imgs, filename) # list of filenames
 }
 rm(i, map) # remove temp objects
@@ -83,7 +98,8 @@ toc()
 # Mosaic images into one raster
 #==================================================================
 tic()
-mosaic <- mosaic_rasters(imgs, file.path(res, paste0(time.stamp, "mosaic.tif")), output_Raster=T, force_ot="Byte")
+mosaic <- mosaic_rasters(imgs, file.path(res, paste0(time.stamp, "mosaic.tif")), output_Raster=T, co="COMPRESS=LZW")
+#force_ot="Byte", 
 #Remove tiles
 file.remove(imgs)
 file.remove(paste0(imgs,'.rda'))
@@ -101,9 +117,9 @@ names(mosaic) = c("band1","band2","band3") # give image bands the same names as 
 r_class <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
 # Reclassify
 #reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,NA,NA,NA,2,3,NA,1), ncol=2)
-#r_reclassified <- reclassify(r_class, reclas) 
+#r_reclassified <- reclassify(r_class, reclas)
 # save as compressed geotiff
-writeRaster(r_class, filename=file.path(res,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U',overwrite=TRUE)
+writeRaster(r_class, filename=file.path(res,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U', overwrite=TRUE)
 file.remove(file.path(res,paste0(time.stamp, "mosaic.tif")))
 
 # create log of classified image names

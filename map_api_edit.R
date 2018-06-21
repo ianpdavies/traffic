@@ -4,7 +4,7 @@
 # https://msdn.microsoft.com/en-us/library/mt823636.aspx
 
 
-GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -122.325, 47.61, -122.107), size = c(640, 640), destfile, 
+GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -122.325, 47.61, -122.107), size = c(1500, 1500), destfile, 
                          zoom = 12, markers, path = "", 
                          maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight","AerialWithLabels")[1], 
                          format = c("png", "gif", "jpg")[1], #In effect, only png, gif, and jpg are accepted
@@ -22,7 +22,9 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   }
   if (all(c("lat", "lon") %in% names(center))) 
     center = center[c("lat", "lon")]
-  stopifnot(all(size <= 1500))
+  stopifnot(size[1] <= 2000)
+  stopifnot(size[2] <= 1500)
+  
   fileBase <- substring(destfile, 1, nchar(destfile) - 4)
   fileExt <- substring(destfile, nchar(destfile) - 2, nchar(destfile))
   if (is.null(center)) {
@@ -138,7 +140,7 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   if (verbose < 2 & NEWMAP & DISK==F & MEMORY) {
     req <- GET(url) #httr package
     if (req$status_code != 200) print(req$status_code) #Check whether error in request
-    return(content(req, as='parsed')) #Directly parse as PNG
+    return(content(req, "parsed")) #Directly parse as PNG
   }
   if (GRAYSCALE) {
     myTile <- readPNG(destfile, native = FALSE)

@@ -12,6 +12,9 @@
 library(taskscheduleR)
 library(lubridate)
 library(geosphere)
+library(rgdal)
+library(sp)
+library(raster)
 library(tictoc)
 
 setwd('F:/Levin_Lab/stormwater/src/traffic')
@@ -30,19 +33,20 @@ PSwatershed <- readOGR(file.path(datadir, 'PSwtshd_roads_dissolve.shp'))
 PSwatershedbbox <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
 polybound <- TRUE
 
-#bbox <- c(47.5,-122.7,47.8,-122) # Coordinates are lower left and upper right lat/long (in that order)
+#bbox <- c(47.7,-122.7,47,-122) # Coordinates are lower left and upper right lat/long (in that order)
 bbox <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
 
 # calculate optimal number of images to fetch
 zoom <- 15
-px = 1500 # length of the image in pixels (maximum that Bing/Google will output)
+Xpx = 2000 # length of the image in pixels (maximum that Bing/Google will output)
+Ypx = 1500
 WebMercator <- CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext  +no_defs") #Define Bing map projection
 
 #Computer pixel coordinate X and Y for the lower left and upper right corner of every row and column
-bbox.list.ll.x <- seq(latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1],latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1],px)
-bbox.list.ur.x <- bbox.list.ll.x + px
-bbox.list.ur.y <- seq(latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2],latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2],px)
-bbox.list.ll.y <- bbox.list.ur.y + px
+bbox.list.ll.x <- seq(latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1],latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1],Xpx)
+bbox.list.ur.x <- bbox.list.ll.x + Xpx
+bbox.list.ur.y <- seq(latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2],latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2],Ypx)
+bbox.list.ll.y <- bbox.list.ur.y + Ypx
 
 imgs.w <- length(bbox.list.ll.x) #Number of columns
 imgs.h <- length(bbox.list.ll.y) #Number of rows
@@ -76,47 +80,25 @@ colnames(coords) <- c('row','col','yll','xll','yur','xur')
 colnames(coords_mercator) <- c('xmin', 'xmax','ymin','ymax')
 imgs.h <- max(coords[,'row'])
 imgs.w <- max(coords[,'col'])
+size <- c(Xpx, Ypx)
 
-save(apiKey,  WebMercator, PSwatershed, polybound, zoom, px,coords,coords_mercator,imgs.h,imgs.w, file = "mapValues")
+save(apiKey,  WebMercator, PSwatershed, polybound, zoom, size,coords_mercator,imgs.h,imgs.w, file = "mapValues")
 
 #==================================================================
 # Schedule tasks
 #==================================================================
 #source('traffic_api.R')
 
+
 # Run four instances of the script, each every four hours                     
-task_script <- "F:/Levin_Lab/stormwater/src/traffic/traffic_api.R"
-taskscheduler_create("GetRasters_1", rscript = task_script, 
-                     schedule = 'HOURLY', modifier=4,
-                     startdate= format(Sys.time(),"%m/%d/%Y"),
-                     starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"),
-                     schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time(), unit="hour")-1, "%H:%M")," /ED ",
-                                           format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
+# task_script <- "F:/Levin_Lab/stormwater/src/traffic/traffic_api.R"
+# taskscheduler_create("GetRasters_1", rscript = task_script, 
+#                      schedule = 'HOURLY', modifier=4,
+#                      startdate= format(Sys.time(),"%m/%d/%Y"),
+#                      starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"),
+#                      schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time(), unit="hour")-1, "%H:%M")," /ED ",
+#                                            format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
+# tasklist <- taskscheduler_ls()
+# taskscheduler_delete("GetRasters_1")
 
-taskscheduler_create("GetRasters_2", rscript = task_script,
-                     schedule = 'HOURLY', modifier=4,
-                     startdate= format(Sys.time(),"%m/%d/%Y"),
-                     starttime=format(ceiling_date(Sys.time()+3600, unit="hour"), "%H:%M"),
-                     schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time()+3600, unit="hour")-1, "%H:%M")," /ED ",
-                                           format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
-                     
 
-taskscheduler_create("GetRasters_3", rscript = task_script,
-                     schedule = 'HOURLY', modifier=4,
-                     startdate= format(Sys.time(),"%m/%d/%Y"),
-                     starttime=format(ceiling_date(Sys.time()+3600*2, unit="hour"), "%H:%M"),
-                     schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time()+3600*2, unit="hour")-1, "%H:%M")," /ED ",
-                                           format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
-
-taskscheduler_create("GetRasters_4", rscript = task_script, 
-                     schedule = 'HOURLY', modifier=4,
-                     startdate= format(Sys.time(),"%m/%d/%Y"),
-                     starttime=format(ceiling_date(Sys.time()+3600*3, unit="hour"), "%H:%M"),
-                     schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time()+3600*3, unit="hour")-1, "%H:%M")," /ED ",
-                                           format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
-
-tasklist <- taskscheduler_ls()
-#taskscheduler_delete("GetRasters_1") 
-#taskscheduler_delete("GetRasters_2") 
-#taskscheduler_delete("GetRasters_3") 
-#taskscheduler_delete("GetRasters_4") 

@@ -12,6 +12,9 @@
 library(taskscheduleR)
 library(lubridate)
 library(geosphere)
+library(rgdal)
+library(sp)
+library(raster)
 library(tictoc)
 
 setwd('F:/Levin_Lab/stormwater/src/traffic')
@@ -26,23 +29,24 @@ datadir <- 'F:/Levin_Lab/stormwater/results/'
 apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
 
 # Full extent of area to be covered
-PSwatershed <- readOGR(file.path(datadir, 'PSwtshd_extrude.shp'))
+PSwatershed <- readOGR(file.path(datadir, 'PSwtshd_roads_dissolve.shp'))
 PSwatershedbbox <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
 polybound <- TRUE
 
-#bbox <- c(47.5,-122.7,47.8,-122) # Coordinates are lower left and upper right lat/long (in that order)
+#bbox <- c(47.7,-122.7,47,-122) # Coordinates are lower left and upper right lat/long (in that order)
 bbox <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
 
 # calculate optimal number of images to fetch
 zoom <- 15
-px = 1500 # length of the image in pixels (maximum that Bing/Google will output)
+Xpx = 2000 # length of the image in pixels (maximum that Bing/Google will output)
+Ypx = 1500
 WebMercator <- CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext  +no_defs") #Define Bing map projection
 
 #Computer pixel coordinate X and Y for the lower left and upper right corner of every row and column
-bbox.list.ll.x <- seq(latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1],latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1],px)
-bbox.list.ur.x <- bbox.list.ll.x + (px)
-bbox.list.ur.y <- seq(latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2],latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2],px)
-bbox.list.ll.y <- bbox.list.ur.y + (px)
+bbox.list.ll.x <- seq(latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[1],latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[1],Xpx)
+bbox.list.ur.x <- bbox.list.ll.x + Xpx
+bbox.list.ur.y <- seq(latlong_to_pixelcoords(bbox[3],bbox[4],zoom)[2],latlong_to_pixelcoords(bbox[1],bbox[2],zoom)[2],Ypx)
+bbox.list.ll.y <- bbox.list.ur.y + Ypx
 
 imgs.w <- length(bbox.list.ll.x) #Number of columns
 imgs.h <- length(bbox.list.ll.y) #Number of rows
@@ -58,10 +62,9 @@ for (i in 1:imgs.h){ #loops over rows
     extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom) #Define coordinates of the upper left edge of the upper right corner pixel for the image 
     coords.tmp <- c(i,j,extent.img.ll,extent.img.ur)
     
-    #Create envelope to overlay with Puget Sound and get Web Mercator bounding box coordinates for georeferencing
+    #Create envelope to overlay with Puget Sound roads and get Web Mercator bounding box coordinates for georeferencing
     envelope <- as(raster::extent(coords.tmp[c(4,6,3,5)]),"SpatialPolygons")
     proj4string(envelope) <- CRS("+proj=longlat +datum=WGS84") 
-    
     if (polybound==TRUE & all(is.na(over(spTransform(envelope,CRSobj=CRS(proj4string(PSwatershed))), PSwatershed)))) { #Make sure that tile falls within boundaries of Puget Sound watershed
       print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
     } else {
@@ -77,17 +80,25 @@ colnames(coords) <- c('row','col','yll','xll','yur','xur')
 colnames(coords_mercator) <- c('xmin', 'xmax','ymin','ymax')
 imgs.h <- max(coords[,'row'])
 imgs.w <- max(coords[,'col'])
+size <- c(Xpx, Ypx)
 
-save(apiKey,  WebMercator, PSwatershed, polybound, zoom, px,coords,coords_mercator,imgs.h,imgs.w, file = "mapValues")
+save(apiKey,  WebMercator, PSwatershed, polybound, zoom, size,coords_mercator,imgs.h,imgs.w, file = "mapValues")
 
 #==================================================================
 # Schedule tasks
 #==================================================================
-source('traffic_api.R')
-# Run script hourly
-# taskscheduler_create("GetRasters", rscript="F:/Levin_Lab/stormwater/src/traffic/traffic_api.R",
-#                      starttime = format(Sys.time() +55, "%H:%M:%S"), schedule='ONCE')
-# taskscheduler_delete("GetRasters")
-#                      
-# taskscheduler_create("GetRasters", rscript = "traffic_api.R", schedule = 'HOURLY',
-#                      starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"))
+#source('traffic_api.R')
+
+
+# Run four instances of the script, each every four hours                     
+# task_script <- "F:/Levin_Lab/stormwater/src/traffic/traffic_api.R"
+# taskscheduler_create("GetRasters_1", rscript = task_script, 
+#                      schedule = 'HOURLY', modifier=4,
+#                      startdate= format(Sys.time(),"%m/%d/%Y"),
+#                      starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"),
+#                      schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time(), unit="hour")-1, "%H:%M")," /ED ",
+#                                            format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
+# tasklist <- taskscheduler_ls()
+# taskscheduler_delete("GetRasters_1")
+
+

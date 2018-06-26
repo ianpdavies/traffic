@@ -101,7 +101,7 @@ r_class <- predict(mosaic, sclass_mlc$model) # classify using model generated fr
 #reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,NA,NA,NA,2,3,NA,1), ncol=2)
 #r_reclassified <- reclassify(r_class, reclas)
 # save as compressed geotiff
-writeRaster(r_class, filename=file.path(res,paste(time.stamp, "class_mlc_reduce.tif", sep="")), format="GTiff", datatype='INT1U', overwrite=TRUE)
+writeRaster(r_class, filename=file.path(res,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U', overwrite=TRUE)
 toc()
 
 file.remove(file.path(res,paste0(time.stamp, "mosaic.tif")))

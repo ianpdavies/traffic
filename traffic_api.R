@@ -28,12 +28,12 @@ library(tictoc)
 #==================================================================
 # Set constants and map parameters
 #==================================================================
-src <- 'F:/Levin_Lab/stormwater/src/traffic'
+src <- 'C:/Mathis/ICSL/stormwater/src/traffic'
 source(file.path(src,"map_api_edit.R")) # edited function GetBingMaps from package `RGoogleMaps`
 source(file.path(src,"coord_conversion.R"))
 load(file.path(src,"mapValues"))
 load(file.path(src,"sclasses")) #Load trained classification model
-res <- 'F:/Levin_Lab/stormwater/results/bing'
+res <- 'C:/Mathis/ICSL/stormwater/results/bing'
 
 #==================================================================
 # Download static images
@@ -41,7 +41,7 @@ res <- 'F:/Levin_Lab/stormwater/results/bing'
 
 map.params <- list(maptype="CanvasDark", # parameters needed to construct URL for API call
                    zoom = zoom,
-                   apiKey=apiKey,
+                   apiKey= BING_KEY,
                    extraURL="&mapLayer=TrafficFlow",
                    verbose=0,
                    size=size,
@@ -51,31 +51,41 @@ map.params <- list(maptype="CanvasDark", # parameters needed to construct URL fo
 
 time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
 
-tic()
-imgs <- c() # holds images
-ntiles <- nrow(coords)
-for (i in 1:ntiles) {
-  print(100*i/ntiles)
-  filename <- file.path(res,
-                        paste(time.stamp, # time stamp
-                              str_pad(coords[i,'row'], nchar(imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                              str_pad(coords[i,'col'], nchar(imgs.w), pad = "0"), # pad img number with leading zeros and column number
-                              ".tif", sep=""))
-  map <- brick(255L*do.call(GetBingMap2, c(list(mapArea=coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params))-1L)
-
-  #Define extent in Web Mercator coordinates
-  xmin(map) <- coords_mercator[i,'xmin'] 
-  xmax(map) <- coords_mercator[i,'xmax'] 
-  ymin(map) <- coords_mercator[i,'ymin'] 
-  ymax(map) <- coords_mercator[i,'ymax'] 
-  crs(map) <- WebMercator # Define coordinate system
-
-  writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
-  imgs <- c(imgs, filename) # list of filenames
+iterate_tiles <- function(tiling_list) {
+  imgs <- c() # holds images
+  ntiles <- nrow(tiling_list$coords)
+  for (i in 1:ntiles) {
+    print(100*i/ntiles)
+    filename <- file.path(res,
+                          paste(time.stamp, # time stamp
+                                str_pad(tiling_list$coords[i,'row'], nchar(tiling_list$imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                                str_pad(tiling_list$coords[i,'col'], nchar(tiling_list$imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                                ".tif", sep=""))
+    map <- brick(255L*do.call(GetBingMap2, c(list(mapArea=tiling_list$coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params))-1L)
+    
+    #Define extent in Web Mercator coordinates
+    xmin(map) <- tiling_list$coords_mercator[i,'xmin']
+    xmax(map) <- tiling_list$coords_mercator[i,'xmax']
+    ymin(map) <- tiling_list$coords_mercator[i,'ymin']
+    ymax(map) <- tiling_list$coords_mercator[i,'ymax']
+    crs(map) <- WebMercator # Define coordinate system
+    
+    writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
+    imgs <- c(imgs, filename) # list of filenames
+  }
+  return(imgs)
+  rm(i, map) # remove temp objects
 }
-rm(i, map) # remove temp objects
+
+
+
+if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
+  
+  
+}
+iterate_tiles(tiling_main)
+
 print('Done downloading tiles')
-toc()
 
 #==================================================================
 # Mosaic images into one raster

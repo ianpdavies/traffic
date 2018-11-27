@@ -1,43 +1,71 @@
-# Traffic 2 Vector
-R script to summarize traffic conditions into a road vector from Bing static maps API.
-Forked version by messamat
+# Large-scale REST API download, georeferencing, and classification of Bing traffic congestion data
+
+Download RGB images of Bing traffic congestion data and classify them into categorical rasters where categories indicate the flow of traffic compared to the speed limits on the roads. 
+
+**SCREENSHOT OF EXAMPLE OUTPUT WITH BING MAP LOGO**
+
+## Terms of Use
+This project was executed using the Bing Maps REST Services API for the purpose of academic research and publication with the authorization of the Bing Maps team. It is subject to the Bing Maps Platform API Terms of Use, including the Print Rights under the Microsoft Bing Maps Platform APIs Terms of Use. The exception to this relates to Section 2.3(c) of the Print Rights, which normally limits users to making no more than 10 copies of any “Road Map” or “Aerial Print”, for the purpose of academic publishing.  
+
+Any third party users of this project's code are responsible for obtaining the authorization of the Bing Maps team for their own use and do not benefit from our agreement.
 
 ## Getting Started
---
-
-## Files
-
-#### run_script.R
-Holds user parameters for the map and sets task scheduler to automatically run the `traffic_api.R` script. Can't figure out how to get Windows Task Scheduler to run though.
-
-#### traffic_api.R
-This is the main script that takes a bounding box for the ROI and a road vector shapefile and returns a road vector with relative traffic conditions averaged over a given period of time. This works by mosaicking static maps from Bing Maps in the ROI, classifying traffic conditions, and averaging those conditions over the desired time period.
-
-#### raster_math.R
-Script to compute averages of all the classified rasters.
-
-#### extract_vector.R
-This script takes the final averaged raster created in `traffic_api.R` and extracts the averaged traffic conditions to an underlying road vector that the user provides as a shapefile. This works (potentially) by densifying the road vector with vertices every 100 meters, converting the densified road geometry to points, extracting traffic conditions to the points, then reconnecting the points to line segments. Contiguous line segments with the same traffic value should be merged to reduce file size. This isn't quite done yet - I'm stuck on reconnecting the line segments while retaining original road shape, but I think `extract` might work for polylines by simply extracting to the densified vertices. Will check.
-
-### model_training.R
-Supervised classification. Not necessary to run this as the random forest model will is already included in the file `sclass` which `traffic_api.R` calls, but for including background. 
-
-#### map_api_edit.R
-Edited functions of `RGoogleMaps` package to allow for more map types (including fixing a typo that incorrectly called aerial maps) and added a parameter to turn map labels on and off. 
-
-#### demo.R
-This is a script used for testing the whole shebang. Basically the files above, merged to run independently. It does require multiple save files included in the `Testing` folder.
-
-
-## Running the Script
-
-
---
-
+1. Get a Bing Maps API key https://msdn.microsoft.com/en-us/library/ff428642.aspx
+2. Create a text file whose content is: 
 ```
-example
+BING_KEY = 'your API key'
 ```
+name it .Renviron and place it in your Sys.getenv("HOME") directory
+3. Place codes and accompanying files in your project directory (rootdir)/src/traffic
+4. Create a 'results' folder in your project directory
+5. Run run_script.R (update rootdir variable at the beginning of the script and )
+6. Create a text file (e.g. in notepad), containing (adapted to your set-up):
+```
+@echo off
+"C:\Program Files\R\R-3.4.2\bin\x64\R.exe" -e source('F:/stormwater/src/traffic/traffic_api.R')
+```
+save it as 'scheduletask_source.bat'
+7. In Windows (10) Task Scheduler, create a task which executes the .bat file every 1 hour (whether logged on or not with the highest privilege). If the task is already running, set it to 'Run a new instance in parallel' (feels weird? reply there: https://stackoverflow.com/questions/50921257/schedule-task-to-run-multiple-overlapping-instances-of-the-same-r-script/50952918#50952918). 
+**ADD SCREENSHOT**
+8. More open-source code to come for post-processing. Currently only developed with arcpy in Python. 
+
+### Prerequisites
+
+- Windows OS
+- Bing Maps REST Services API key
+- R
+- Lots of storage space
+
+## Explanations
+- API output format (pixel vs. coordinates)
+- Tiling
+- Logo
+- Classification
+- Post-processing
+- Estimate how much storage space is needed
+
+## To-do
+- Include arcpy code for post-processing
+- Develop open-source code for post-processing
+- Further clean up and improve code structure
+- Make it faster (e.g. parallelize API call)
+
+## Contributing
+
+Please read [CONTRIBUTING.md] for details on our code of conduct, and the process for submitting pull requests.
 
 ## Authors
 
-**Ian Davies**
+* **Ian Davies** - *Initial work* - https://github.com/ianpdavies
+* **Mathis Messager** - *Current developer* - https://github.com/messamat
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Acknowledgments
+* Thanks to the Bing Maps team for authorizing this project
+* Thanks to Tostes, A. I. J., de LP Duarte-Figueiredo, F., Assunção, R., Salles, J., & Loureiro, A. A. (2013, August). From data to knowledge: city-wide traffic flows analysis and prediction using bing maps. In Proceedings of the 2nd ACM SIGKDD International Workshop on Urban Computing (p. 12). ACM. for the inspiration
+* Hat tip to anyone whose code was used
+
+--

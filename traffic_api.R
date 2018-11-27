@@ -77,24 +77,21 @@ iterate_tiles <- function(tiling_list) {
   rm(i, map) # remove temp objects
 }
 
-
-
+#Run differently depending on whether it's an odd or even hour
 if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
-  
-  
+  imgs_list <- iterate_tiles(tiling_main)
+} else {
+  imgs_list <- iterate_tiles(tiling_alt)
 }
-iterate_tiles(tiling_main)
-
-print('Done downloading tiles')
 
 #==================================================================
 # Mosaic images into one raster
 #==================================================================
 tic()
-mosaic <- mosaic_rasters(imgs, file.path(res, paste0(time.stamp, "mosaic.tif")), output_Raster=T, co="COMPRESS=LZW")
+mosaic <- mosaic_rasters(imgs_list, file.path(res, paste0(time.stamp, "mosaic.tif")), output_Raster=T, co="COMPRESS=LZW")
 #Remove tiles
-file.remove(imgs)
-file.remove(paste0(imgs,'.rda'))
+file.remove(imgs_list)
+file.remove(paste0(imgs_list,'.rda'))
 print('Done mosaicking')
 toc()
 

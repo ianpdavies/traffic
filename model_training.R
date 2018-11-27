@@ -5,25 +5,25 @@ library(RgoogleMaps)
 library(httr) #for in-memory download of API image
 library(RStoolbox) 
 
-src <- 'F:/Levin_Lab/stormwater/src/traffic'
+#rootdir <- 'F:/Levin_Lab/stormwater' #UPDATE
+rootdir <- 'C:/Mathis/ICSL/stormwater'
+src <- file.path(rootdir, '/src/traffic')
 setwd(src)
 source("map_api_edit.R") # edited function GetBingMaps from package `RGoogleMaps`
-setwd('F:/Levin_Lab/stormwater/data')
+setwd(file.path(rootdir,'data'))
+BING_KEY <- Sys.getenv("BING_KEY")
 
 #==================================================================
 # Train supervised classification
 #==================================================================
 #Ran 'run_script.R' with c(47.5,-122.7,47.8,-122) for bbox, 180615_12_08, and added to traffic_api.R: file.rename(paste(time.stamp, "mosaic.tif", sep=""), "traffic_classification_trainingimg.tif") 
 #===================================
-# get test images
-apiKey = "AinLOS3zG8oO80pPTZqNx_Pl4SQvO-JhY6tNCujUOJr0iRrbACjQSuLE3_9ir849"
-
 # smaller image to test, 2
 map.test=GetBingMap2( # aerial image
   mapArea=c(47.556256, -122.296838, 47.565523, -122.281560),
   maptype="CanvasDark", # use aerial for final because it doesn't have labels
   zoom=15,
-  apiKey=apiKey,
+  apiKey= BING_KEY,
   extraURL="&mapLayer=TrafficFlow",
   destfile="test2.png",
   verbose=0,

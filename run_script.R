@@ -2,8 +2,7 @@
 # Description
 #==================================================================
 
-# This script sets up the task scheduler and parameters for the region of interest, then calls the traffic_api.R script to get hourly static images
-# After all the images are downloaded and classified, you can use the raster_math.R script to summarize them into single rasters for analysis.
+# This script sets up the parameters for the region of interest to be called in traffic_api.R every hour through the windows Task Scheduler
 
 #==================================================================
 # Dependencies
@@ -24,7 +23,7 @@ source('coord_conversion.R')
 resdir <- file.path(rootdir, 'results')
 
 #Set constants
-BING_KEY = Sys.getenv("BING_KEY")
+BING_KEY = Sys.getenv("BING_KEY") #Access API key (see https://cran.r-project.org/web/packages/httr/vignettes/secrets.html)
 WebMercator <- CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext  +no_defs") #Define Bing map projection
 zoom <- 15
 Xpx <- 2000 # length of the image in pixels (maximum that Bing/Google will output)
@@ -168,22 +167,3 @@ logo_bool(tiling_alt, logopix, file.path(res, 'boolean_logoalt.tif'))
 
 
 save(BING_KEY,  WebMercator, PSwatershed, zoom, tiling_main, tiling_alt, file = "mapValues")
-
-#==================================================================
-# Schedule tasks - does not work
-#==================================================================
-#source('traffic_api.R')
-
-
-# Run four instances of the script, each every four hours                     
-# task_script <- "F:/Levin_Lab/stormwater/src/traffic/traffic_api.R"
-# taskscheduler_create("GetRasters_1", rscript = task_script, 
-#                      schedule = 'HOURLY', modifier=4,
-#                      startdate= format(Sys.time(),"%m/%d/%Y"),
-#                      starttime=format(ceiling_date(Sys.time(), unit="hour"), "%H:%M"),
-#                      schtasks_extra=paste0("/ET ",format(ceiling_date(Sys.time(), unit="hour")-1, "%H:%M")," /ED ",
-#                                            format(as.Date(Sys.time(), tz='UTC')+ 7, '%m/%d/%Y')))
-# tasklist <- taskscheduler_ls()
-# taskscheduler_delete("GetRasters_1")
-
-

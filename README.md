@@ -1,6 +1,6 @@
-# Large-scale REST API download, georeferencing, and classification of Bing traffic congestion data
+# Downloading and formatting Bing Traffic REST API
 
-Download RGB images of Bing traffic congestion data and classify them into categorical rasters where categories indicate the flow of traffic compared to the speed limits on the roads. 
+Download RGB images of Bing traffic congestion data, georeference them, and classify them into categorical rasters where categories indicate the flow of traffic compared to the speed limits on the roads. 
 
 **SCREENSHOT OF EXAMPLE OUTPUT WITH BING MAP LOGO**
 

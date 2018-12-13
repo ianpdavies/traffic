@@ -28,35 +28,35 @@ library(tictoc)
 #==================================================================
 # Set constants and map parameters
 #==================================================================
-src <- 'C:/Mathis/ICSL/stormwater/src/traffic'
+rootdir <- 'F:/Levin_Lab/stormwater'
+src <- file.path(rootdir, '/src/traffic')
 source(file.path(src,"map_api_edit.R")) # edited function GetBingMaps from package `RGoogleMaps`
 source(file.path(src,"coord_conversion.R"))
 load(file.path(src,"mapValues"))
 load(file.path(src,"sclasses")) #Load trained classification model
-res <- 'C:/Mathis/ICSL/stormwater/results/bing'
+resdir <- file.path(rootdir, 'results/bing')
 
 #==================================================================
 # Download static images
 #==================================================================
-
-map.params <- list(maptype="CanvasDark", # parameters needed to construct URL for API call
-                   zoom = zoom,
-                   apiKey= BING_KEY,
-                   extraURL="&mapLayer=TrafficFlow",
-                   verbose=0,
-                   size=size,
-                   DISK=F,
-                   MEMORY=TRUE,
-                   labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
-
 time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
 
 iterate_tiles <- function(tiling_list) {
+  map.params <- list(maptype="CanvasDark", # parameters needed to construct URL for API call
+                     zoom = zoom,
+                     apiKey= BING_KEY,
+                     extraURL="&mapLayer=TrafficFlow",
+                     verbose=0,
+                     size=tiling_list$size,
+                     DISK=F,
+                     MEMORY=TRUE,
+                     labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
+  
   imgs <- c() # holds images
   ntiles <- nrow(tiling_list$coords)
   for (i in 1:ntiles) {
     print(100*i/ntiles)
-    filename <- file.path(res,
+    filename <- file.path(resdir,
                           paste(time.stamp, # time stamp
                                 str_pad(tiling_list$coords[i,'row'], nchar(tiling_list$imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
                                 str_pad(tiling_list$coords[i,'col'], nchar(tiling_list$imgs.w), pad = "0"), # pad img number with leading zeros and column number
@@ -88,7 +88,7 @@ if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
 # Mosaic images into one raster
 #==================================================================
 tic()
-mosaic <- mosaic_rasters(imgs_list, file.path(res, paste0(time.stamp, "mosaic.tif")), output_Raster=T, co="COMPRESS=LZW")
+mosaic <- mosaic_rasters(imgs_list, file.path(resdir, paste0(time.stamp, "mosaic.tif")), output_Raster=T, co="COMPRESS=LZW")
 #Remove tiles
 file.remove(imgs_list)
 file.remove(paste0(imgs_list,'.rda'))
@@ -108,12 +108,12 @@ r_class <- predict(mosaic, sclass_mlc$model) # classify using model generated fr
 #reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,NA,NA,NA,2,3,NA,1), ncol=2)
 #r_reclassified <- reclassify(r_class, reclas)
 # save as compressed geotiff
-writeRaster(r_class, filename=file.path(res,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U', overwrite=TRUE)
+writeRaster(r_class, filename=file.path(resdir,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U', overwrite=TRUE)
 toc()
 
-file.remove(file.path(res,paste0(time.stamp, "mosaic.tif")))
+file.remove(file.path(resdir,paste0(time.stamp, "mosaic.tif")))
 
 # create log of classified image names
-write(file.path(res, paste(time.stamp, "class.tif", sep="")), file="classified_image_log.txt", append=TRUE)
+write(file.path(resdir, paste(time.stamp, "class.tif", sep="")), file="classified_image_log.txt", append=TRUE)
 print('Done classifying')
 toc()

@@ -9,14 +9,15 @@
 #==================================================================
 library(png)
 library(lubridate)
+library(gdalUtils)
 library(geosphere)
 library(rgdal)
 library(sp)
 library(raster)
 library(tictoc)
 
-#rootdir <- 'F:/Levin_Lab/stormwater'
-rootdir <- 'C:/Mathis/ICSL/stormwater'
+rootdir <- 'F:/Levin_Lab/stormwater'
+#rootdir <- 'C:/Mathis/ICSL/stormwater'
 setwd(file.path(rootdir, 'src/traffic'))
 source('coord_conversion.R')
 source('map_api_edit.R')
@@ -76,6 +77,7 @@ map.logow <- GetBingMap2(
 #Identify pixels influenced by the Bing logo
 mapw_sum <- apply(map.logow, c(1,2), sum)
 logopix <- ((apply(map.logob, c(1,2), sum) != 0) | (mapw_sum != Mode(mapw_sum)))
+logopix[logopix == 0] <- NA
 
 #Check the bounding box of the logo in the image and determine extent shift
 logoshift <- Ypx - apply(which(logopix, arr.ind=T), 2, min)[1] + 1 #Only in the bottom 23 pixels
@@ -87,8 +89,8 @@ logoshift <- Ypx - apply(which(logopix, arr.ind=T), 2, min)[1] + 1 #Only in the 
 PSwatershed <- readOGR(file.path(resdir, 'PSwtshd_OSMroads_dissolve.shp'))
 PSwatershedbbox <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
 
-rect <- c(47,-122.7,47.7,-122) # Coordinates are lower left and upper right lat/long (in that order) test extent
-#rect <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
+#rect <- c(47,-122.7,47.7,-122) # Coordinates are lower left and upper right lat/long (in that order) test extent
+rect <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
 
 #Create an alternate bounding box by extending it North by the height of the Bing logo bounding box
 rect_alt <- c(rect[1], rect[2],
@@ -148,22 +150,25 @@ tiling_alt <- bbox_tile(bbox = rect_alt, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = PSw
 
 
 logo_bool <- function(tiling_list, logoids, outraster) {
-  logopix_raster<- raster(
-    do.call(cbind, replicate(tiling_list$imgs.w, 
-                             do.call(rbind, replicate(tiling_list$imgs.h, 
-                                                      logoids, simplify=FALSE)), simplify=FALSE))
-  )
-  
-  xmin(logopix_raster) <- min(tiling_list$coords_mercator[,'xmin'])  
-  xmax(logopix_raster) <- max(tiling_list$coords_mercator[,'xmax'])  
-  ymin(logopix_raster) <- min(tiling_list$coords_mercator[,'ymin'])  
-  ymax(logopix_raster) <- max(tiling_list$coords_mercator[,'ymax'])  
-  crs(logopix_raster) <- WebMercator # Define coordinate system
-  writeRaster(logopix_raster, outraster, format='GTiff', overwrite=T)
+  llen <- nrow(tiling_list$coords_mercator)
+  for (i in 1:llen) {
+    print(100*i/llen)
+    bbox <- tiling_list$coords_mercator[i,]
+    r <- raster(logoids)
+    xmin(r) <- bbox[1]
+    xmax(r) <- bbox[2]
+    ymin(r) <- bbox[3] 
+    ymax(r) <- bbox[4]
+    crs(r) <- WebMercator # Define coordinate system
+    writeRaster(r, paste0(outraster, i, '.tif'), format='GTiff', datatype='INT1U', overwrite=T)
+  }
+  print('Done downloading')
+  mosaic_rasters(paste0(outraster, 1:llen, '.tif'), paste0(outraster, '.tif'), output_Raster=F, co="COMPRESS=LZW")
+  print('Done mosaicking, now deleting')
+  do.call(file.remove, list(paste0(outraster, 1:llen, '.tif')))
 }
 
-logo_bool(tiling_main, logopix, file.path(res, 'boolean_logo.tif'))
-logo_bool(tiling_alt, logopix, file.path(res, 'boolean_logoalt.tif'))
-
+logo_bool(tiling_main, logopix, file.path(resdir, 'boolean_logo'))
+logo_bool(tiling_alt, logopix, file.path(resdir, 'boolean_logoalt'))
 
 save(BING_KEY,  WebMercator, PSwatershed, zoom, tiling_main, tiling_alt, file = "mapValues")

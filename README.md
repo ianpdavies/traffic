@@ -9,16 +9,16 @@ This project was executed using the Bing Maps REST Services API for the purpose 
 
 Any third party users of this project's code are responsible for obtaining the authorization of the Bing Maps team for their own use and do not benefit from our agreement.
 
-## Getting Started
-1. Get a Bing Maps API key https://msdn.microsoft.com/en-us/library/ff428642.aspx
+## Getting Started  
+1. Get a Bing Maps API key https://msdn.microsoft.com/en-us/library/ff428642.aspx  
 2. Create a text file whose content is: 
 ```
 BING_KEY = 'your API key'
 ```
-name it .Renviron and place it in your Sys.getenv("HOME") directory
-3. Place codes and accompanying files in your project directory (rootdir)/src/traffic
-4. Create a 'results' folder in your project directory
-5. Run run_script.R (update rootdir variable at the beginning of the script and )
+name it .Renviron and place it in your Sys.getenv("HOME") directory.  
+3. Place codes and accompanying files in your project directory (rootdir)/src/traffic  
+4. Create a 'results' folder in your project directory  
+5. Run run_script.R (update rootdir variable at the beginning of the script and )  
 6. Create a text file (e.g. in notepad), containing (adapted to your set-up):
 ```
 @echo off

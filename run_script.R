@@ -7,8 +7,7 @@
 #==================================================================
 # Dependencies
 #==================================================================
-
-library(taskscheduleR)
+library(png)
 library(lubridate)
 library(geosphere)
 library(rgdal)
@@ -20,6 +19,7 @@ library(tictoc)
 rootdir <- 'C:/Mathis/ICSL/stormwater'
 setwd(file.path(rootdir, 'src/traffic'))
 source('coord_conversion.R')
+source('map_api_edit.R')
 resdir <- file.path(rootdir, 'results')
 
 #Set constants

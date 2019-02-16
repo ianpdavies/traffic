@@ -15,10 +15,14 @@ library(rgdal)
 library(sp)
 library(raster)
 library(tictoc)
+library(parallel)
+library(doParallel)
+library(plyr)
 
-rootdir <- 'F:/Levin_Lab/stormwater'
-#rootdir <- 'C:/Mathis/ICSL/stormwater'
-setwd(file.path(rootdir, 'src/traffic'))
+#rootdir <- 'F:/Levin_Lab/stormwater'
+rootdir <- 'C:/Mathis/ICSL/stormwater'
+if (getwd() != file.path(rootdir, 'src/traffic')) {
+  setwd(file.path(rootdir, 'src/traffic'))}
 source('coord_conversion.R')
 source('map_api_edit.R')
 resdir <- file.path(rootdir, 'results')
@@ -42,9 +46,9 @@ Mode <- function(x) {
 #Get a single image in the middle of the ocean
 ll <- c(47, -126) #lower left coordinate
 bbox_ocean <- c(ll, 
-          pixelcoords_to_latlong(latlong_to_pixelcoords(ll[1],ll[2],zoom)[2] - Ypx, 
-                                 latlong_to_pixelcoords(ll[1],ll[2],zoom)[1] + Xpx,
-                                 zoom)) #Create bounding box for a single tile
+                pixelcoords_to_latlong(latlong_to_pixelcoords(ll[1],ll[2],zoom)[2] - Ypx, 
+                                       latlong_to_pixelcoords(ll[1],ll[2],zoom)[1] + Xpx,
+                                       zoom)) #Create bounding box for a single tile
 
 map.logob <- GetBingMap2(
   mapArea= bbox_ocean,
@@ -86,11 +90,18 @@ logoshift <- Ypx - apply(which(logopix, arr.ind=T), 2, min)[1] + 1 #Only in the 
 # Set map parameters (these will be called in the traffic_api.R script)
 #==================================================================
 # Full extent of area to be covered
-PSwatershed <- readOGR(file.path(resdir, 'PSwtshd_OSMroads_dissolve.shp'))
-PSwatershedbbox <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
+"For processing PS watershed"
+# PSwatershed <- readOGR(file.path(resdir, 'PSwtshd_OSMroads_dissolve.shp'))
+# shpbbox2 <- spTransform(PSwatershed, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
 
+"For processing US AQ monitoring stations"
+AQsites <- readOGR(file.path(resdir, 'airdata/airsites_600buf.shp'))
+shpbbox <- spTransform(AQsites, CRSobj=CRS("+proj=longlat +datum=WGS84"))@bbox
+
+rect <- c(shpbbox[2,1], shpbbox[1,1], shpbbox[2,2], shpbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
+
+"For testing function"
 #rect <- c(47,-122.7,47.7,-122) # Coordinates are lower left and upper right lat/long (in that order) test extent
-rect <- c(PSwatershedbbox[2,1],PSwatershedbbox[1,1],PSwatershedbbox[2,2],PSwatershedbbox[1,2])  # Coordinates are lower left and upper right lat/long (in that order)
 
 #Create an alternate bounding box by extending it North by the height of the Bing logo bounding box
 rect_alt <- c(rect[1], rect[2],
@@ -111,31 +122,118 @@ bbox_tile <- function(bbox, zoom, Xpx, Ypx, poly, polybound) {
   imgs.w <- length(bbox.list.ll.x) #Number of columns
   imgs.h <- length(bbox.list.ll.y) #Number of rows
   
-  coords <- c()
-  coords_mercator <- c()
-  for (i in 1:imgs.h){ #loops over rows
-    for(j in 1:imgs.w){ # loops over columns
-      print(100*(imgs.w*(i-1)+j)/(imgs.w*imgs.h))
-      
-      #Define extent for calling API
-      extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of the upper left edge of the lower left corner pixel for the image 
-      extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom) #Define coordinates of the upper left edge of the upper right corner pixel for the image 
-      coords.tmp <- c(i,j,extent.img.ll,extent.img.ur)
-      
-      #Create envelope to overlay with Puget Sound roads and get Web Mercator bounding box coordinates for georeferencing
-      envelope <- as(raster::extent(coords.tmp[c(4,6,3,5)]),"SpatialPolygons")
-      proj4string(envelope) <- CRS("+proj=longlat +datum=WGS84") 
-      if (polybound==TRUE & all(is.na(over(spTransform(envelope,CRSobj=CRS(proj4string(poly))), poly)))) {
-        #Make sure that tile falls within boundaries of polygon
-        print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
-      } else {
-        coords <- rbind(coords, coords.tmp) #API call vector
-        envelope <- spTransform(envelope, CRSobj=WebMercator)
-        coords_mercator <- rbind(coords_mercator, c(xmin(envelope),xmax(envelope),ymin(envelope),ymax(envelope))) #Georeferencing vector
-      }
-    }
+  #----Try creating a polygon dataset for every tile and then overlapping every tile ----
+  nestedloops <- function() {
+    ldply(1:10, function(i) {
+      ldply(1:100, function(j){
+        extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of the upper left edge of the lower left corner pixel for the image 
+        extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom) #Define coordinates of the upper left edge of the upper right corner pixel for the image 
+        coords.tmp <- c(i,j,extent.img.ll,extent.img.ur)
+        envelope <- as(raster::extent(coords.tmp[c(4,6,3,5)]),"SpatialPolygons")
+        proj4string(envelope) <- CRS("+proj=longlat +datum=WGS84") 
+        if (polybound==TRUE & all(is.na(over(spTransform(envelope,CRSobj=CRS(proj4string(poly))), poly)))) {
+          #Make sure that tile falls within boundaries of polygon
+          #print(paste0('Row ',i,', column ',j,' does not intersect with polygon boundaries'))
+          return(NULL)
+        } else {
+          envelope <- spTransform(envelope, CRSobj=WebMercator)
+          return(c(xmin(envelope),xmax(envelope),ymin(envelope),ymax(envelope), 
+                   coords.tmp))
+        }
+      })
+    })
   }
-  rm(i,j,coords.tmp)
+  
+  
+  #----Try creating a polygon dataset of every row and then overlapping by row ----
+  hierloops <- function() {
+    lapply(1:10, function(i) {
+      rowtiles <- lapply(1:100, function(j){
+        #Go through every tile and create a spatial polygon + record latlong
+        extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of the upper left edge of the lower left corner pixel for the image 
+        extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom) #Define coordinates of the upper left edge of the upper right corner pixel for the image 
+        coords.tmp <- c(i,j,extent.img.ll,extent.img.ur)
+        list(as(raster::extent(coords.tmp[c(4,6,3,5)]),"SpatialPolygons"),
+             coords.tmp)
+      })
+      
+      #Extract spatial polygons and coords
+      rowenvelope <- do.call('bind', lapply(rowtiles, `[[`, 1))
+      coords <- lapply(rowtiles, `[[`, 2)
+      
+      #Define polygons coordinate system and extract those that overlap with input shapefile
+      proj4string(rowenvelope) <- sp::CRS("+proj=longlat +datum=WGS84") 
+      overlapind <- !is.na(
+        sp::over(
+          sp::spTransform(rowenvelope, CRSobj=sp::CRS(proj4string(poly))),
+          poly))
+      rowoverlap <- rowenvelope[overlapind]
+      
+      n_overlap <- length(rowoverlap)
+      if (polybound==TRUE) {
+        if (n_overlap > 0) {
+          #Get WebMercator-projected extent of each polygon that overlaps input shapefile
+          envelopes <- spTransform(rowoverlap, CRSobj=WebMercator)
+          coords_mercator <- ldply(1:n_overlap, function(j) {
+            c(xmin(envelopes[j]),xmax(envelopes[j]),
+              ymin(envelopes[j]),ymax(envelopes[j]))
+          })
+          list(coords_mercator, coords[overlapind])
+        }
+      }      
+    })
+  }
+  
+  #----Try first creating a polygon dataset of all tiles then overlapping----
+  allover <- function() {
+    rowenvelope <- sapply(1:10, function(i) {
+      lapply(1:100, function(j){
+        #Go through every tile and create a spatial polygon + record latlong
+        extent.img.ll <- pixelcoords_to_latlong(bbox.list.ll.y[i], bbox.list.ll.x[j], zoom) #Define coordinates of the upper left edge of the lower left corner pixel for the image 
+        extent.img.ur <- pixelcoords_to_latlong(bbox.list.ur.y[i], bbox.list.ur.x[j], zoom) #Define coordinates of the upper left edge of the upper right corner pixel for the image 
+        coords.tmp <- c(i,j,extent.img.ll,extent.img.ur)
+        list(as(raster::extent(coords.tmp[c(4,6,3,5)]),"SpatialPolygons"),
+             coords.tmp)
+      })
+    })
+    
+    #Extract spatial polygons and coords
+    allenvelopes <- do.call('bind', lapply(rowenvelope, `[[`, 1))
+    coords <- lapply(rowenvelope, `[[`, 2)
+    
+    #Define polygons coordinate system and extract those that overlap with input shapefile
+    proj4string(allenvelopes) <- sp::CRS("+proj=longlat +datum=WGS84") 
+    overlapind <- !is.na(
+      sp::over(
+        sp::spTransform(allenvelopes, CRSobj=sp::CRS(proj4string(poly))),
+        poly))
+    rowoverlap <- allenvelopes[overlapind]
+    
+    n_overlap <- length(rowoverlap)
+    if (polybound==TRUE) {
+      if (n_overlap > 0) {
+        #Get WebMercator-projected extent of each polygon that overlaps input shapefile
+        envelopes <- spTransform(rowoverlap, CRSobj=WebMercator)
+        coords_mercator <- ldply(1:n_overlap, function(j) {
+          c(xmin(envelopes[j]),xmax(envelopes[j]),
+            ymin(envelopes[j]),ymax(envelopes[j]))
+        })
+        list(coords_mercator, coords[overlapind])
+      }
+    }      
+  }
+  
+  
+  #----Test speed of different methods ----
+  microbenchmark(
+    nestedloops(),
+    hierloops(),
+    allover(),
+    times=2
+  )
+  
+  #----Postprocess data ----
+  
   colnames(coords) <- c('row','col','yll','xll','yur','xur')
   colnames(coords_mercator) <- c('xmin', 'xmax','ymin','ymax')
   imgs.h <- max(coords[,'row'])
@@ -145,8 +243,8 @@ bbox_tile <- function(bbox, zoom, Xpx, Ypx, poly, polybound) {
   return(list(coords=coords, coords_mercator=coords_mercator, imgs.h=imgs.h, imgs.w=imgs.w, size=size))
 }
 
-tiling_main <- bbox_tile(bbox = rect, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = PSwatershed, polybound=TRUE)
-tiling_alt <- bbox_tile(bbox = rect_alt, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = PSwatershed, polybound=TRUE)
+tiling_main <- bbox_tile(bbox = rect, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = AQsites, polybound=TRUE)
+tiling_alt <- bbox_tile(bbox = rect_alt, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = AQsites, polybound=TRUE)
 
 
 logo_bool <- function(tiling_list, logoids, outraster) {
@@ -171,4 +269,4 @@ logo_bool <- function(tiling_list, logoids, outraster) {
 logo_bool(tiling_main, logopix, file.path(resdir, 'boolean_logo'))
 logo_bool(tiling_alt, logopix, file.path(resdir, 'boolean_logoalt'))
 
-save(BING_KEY,  WebMercator, PSwatershed, zoom, tiling_main, tiling_alt, file = "mapValues")
+save(BING_KEY,  WebMercator, PSwatershed, zoom, tiling_main, tiling_alt, file = "mapValues_AQsites")

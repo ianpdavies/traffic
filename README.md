@@ -7,7 +7,7 @@ Download RGB images of Bing traffic congestion data, georeference them, and clas
 ## Terms of Use
 This project was executed using the Bing Maps REST Services API for the purpose of academic research and publication with the authorization of the Bing Maps team. It is subject to the Bing Maps Platform API Terms of Use, including the Print Rights under the Microsoft Bing Maps Platform APIs Terms of Use. The exception to this relates to Section 2.3(c) of the Print Rights, which normally limits users to making no more than 10 copies of any “Road Map” or “Aerial Print”, for the purpose of academic publishing.  
 
-Any third party users of this project's code are responsible for obtaining the authorization of the Bing Maps team for their own use and do not benefit from our agreement.
+Any third party user of this project's code is responsible for obtaining the authorization of the Bing Maps team for their own use and do not benefit from our agreement.
 
 ## Getting Started  
 1. Get a Bing Maps API key https://msdn.microsoft.com/en-us/library/ff428642.aspx  

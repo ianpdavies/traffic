@@ -249,9 +249,3 @@ tiling_alt <-  AQtiles$tiling_alt
 
 save(BING_KEY,  WebMercator, AQsites,  zoom, tiling_main, tiling_alt, logopars,
      file = "mapValues_AQsites")
-
-#Create mask for logos across all tiles
-logo_bool(tiling_main, logopars[['logopix']], file.path(resdir, 'boolean_logo'))
-logo_bool(tiling_alt, logopars[['logopix']], file.path(resdir, 'boolean_logoalt'))
-
-

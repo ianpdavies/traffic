@@ -86,7 +86,7 @@ iterate_tiles <- function(tiling_list) {
     
     if (max(map@data@values[-logopixpos,])>-1) { #Only continue if areas outside of logo have data 
       #Remove logo
-      #map@data@values[logopixpos,] <- c(-1, -1, -1)
+      map@data@values[logopixpos,] <- c(-1, -1, -1)
       
       #Define extent in Web Mercator coordinates
       raster::xmin(map) <- tiling_list$coords_mercator[i,'xmin']
@@ -132,7 +132,7 @@ Sys.time()
 tic()
 names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
 r_class <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
-# Reclassify
+# Reclassify (moved to post processing in arcpy)
 #reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,NA,NA,NA,2,3,NA,1), ncol=2)
 #r_reclassified <- reclassify(r_class, reclas)
 # save as compressed geotiff

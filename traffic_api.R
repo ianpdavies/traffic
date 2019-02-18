@@ -68,8 +68,7 @@ iterate_tiles <- function(tiling_list) {
   
   cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
   doParallel::registerDoParallel(cl)
-  opts <- list(chunkSize=ntiles/bigstatsr::nb_cores())
-  imgs <- foreach(i=seq_len(ntiles), .options.nws = opts) %dopar% {
+  imgs <- foreach(i=seq_len(ntiles)) %dopar% {
     #print(100*i/ntiles)
     
     filename <- file.path(resdir,

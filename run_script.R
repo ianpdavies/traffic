@@ -19,9 +19,10 @@ library(remotes)
 library(plyr)
 library(Rcpp)
 library(data.table)
+library(magrittr)
+library(rprojroot)
 
-#rootdir <- 'F:/Levin_Lab/stormwater'
-rootdir <- 'C:/Mathis/ICSL/stormwater'
+rootdir <- find_root(has_dir("src"))
 if (getwd() != file.path(rootdir, 'src/traffic')) {
   setwd(file.path(rootdir, 'src/traffic'))}
 source('coord_conversion.R')
@@ -96,7 +97,7 @@ getlogo <- function(Xpx, Ypx, zoom, BING_KEY) {
 # Set map parameters (these will be called in the traffic_api.R script)
 #==================================================================
 #Determine number and bounding box of every tile to get
-bbox_tile <- function(bbox, zoom, Xpx, Ypx, poly, polybound) {
+bbox_tile <- function(bbox, zoom, Xpx, Ypx, poly, polywgs, polybound) {
   #Compute pixel coordinate X and Y for the lower left and upper right corner of every row and column 
   #within the bounding box of the entire shapefile.
   #(keep in mind that in pixel coordinates X increase west to east and Y increased north to south,so 
@@ -114,7 +115,7 @@ bbox_tile <- function(bbox, zoom, Xpx, Ypx, poly, polybound) {
   
   #---- Create smallest clusters of tiles that enclose each shape's bounding box ----
   #Get bounding box of each shape
-  sitebox <- data.table(GetBBoxes(shptrans), ID=seq_len(nrow(shptrans))) %>% 
+  sitebox <- data.table(GetBBoxes(polywgs), ID=seq_len(nrow(polywgs))) %>% 
     #Convert it them to pixel coordinates
     .[, (c('llx','lly')) := latlong_to_pixelcoords(minY, minX, zoom)] %>%
     .[, (c('urx','ury')) := latlong_to_pixelcoords(maxY, maxX, zoom)] %>%
@@ -152,7 +153,7 @@ bbox_tile <- function(bbox, zoom, Xpx, Ypx, poly, polybound) {
     sp::proj4string(envelope) <- sp::CRS("+proj=longlat +datum=WGS84") 
     if (polybound==TRUE) {
       if (any(!is.na(over(
-        spTransform(envelope, CRSobj=sp::CRS(sp::proj4string(shp))), 
+        spTransform(envelope, CRSobj=sp::CRS(sp::proj4string(poly))), 
         poly))))  {  
         envelope <- spTransform(envelope, CRSobj=WebMercator)
         list(coords_wgs = as.vector(tile),
@@ -197,9 +198,11 @@ setparams <- function(shp, Xpx, Ypx, zoom, BING_KEY, logopars) {
   
   #Determine number and bounding box of every tile to get
   print('Getting main tiling')
-  tiling_main <- bbox_tile(bbox = rect, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = shp, polybound=TRUE)
+  tiling_main <- bbox_tile(bbox = rect, zoom=zoom, Xpx=Xpx, Ypx=Ypx,
+                           poly = shp, polywgs = shptrans, polybound=TRUE)
   print('Getting shifted tiling')
-  tiling_alt <- bbox_tile(bbox = rect_alt, zoom=zoom, Xpx=Xpx, Ypx=Ypx, poly = shp, polybound=TRUE)
+  tiling_alt <- bbox_tile(bbox = rect_alt, zoom=zoom, Xpx=Xpx, Ypx=Ypx, 
+                          poly = shp,polywgs = shptrans, polybound=TRUE)
   
   return(list(tiling_main=tiling_main, tiling_alt=tiling_alt))
 }
@@ -244,9 +247,11 @@ AQtiles <- setparams(shp=AQsites, Xpx, Ypx, zoom, BING_KEY, logopars)
 tiling_main <- AQtiles$tiling_main
 tiling_alt <-  AQtiles$tiling_alt
 
+save(BING_KEY,  WebMercator, AQsites,  zoom, tiling_main, tiling_alt, logopars,
+     file = "mapValues_AQsites")
+
 #Create mask for logos across all tiles
 logo_bool(tiling_main, logopars[['logopix']], file.path(resdir, 'boolean_logo'))
 logo_bool(tiling_alt, logopars[['logopix']], file.path(resdir, 'boolean_logoalt'))
 
-save(BING_KEY,  WebMercator, AQsites,  zoom, tiling_main, tiling_alt,
-     file = "mapValues_AQsites")
+

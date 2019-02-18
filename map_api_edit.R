@@ -38,8 +38,8 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   else if (is.numeric(center) & !missing(zoom)) {
     MyMap <- list(lat.center = center[1], lon.center = center[2], 
                   zoom = zoom, SCALE = SCALE)
-    BBOX <- list(ll = XY2LatLon(MyMap, -size[1]/2 + 0.5, 
-                                -size[2]/2 - 0.5), ur = XY2LatLon(MyMap, size[1]/2 + 
+    BBOX <- list(ll = RgoogleMaps::XY2LatLon(MyMap, -size[1]/2 + 0.5, 
+                                -size[2]/2 - 0.5), ur = RgoogleMaps::XY2LatLon(MyMap, size[1]/2 + 
                                                                     0.5, size[2]/2 - 0.5))
     MetaInfo <- list(lat.center = center[1], lon.center = center[2], 
                      zoom = zoom, url = "bing", BBOX = BBOX, size = size, 
@@ -143,14 +143,14 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
     }
   }
   if (verbose < 2 & NEWMAP & DISK==F & MEMORY) {
-    req <- GET(url) #httr package
+    req <- httr::GET(url) #httr package
     if (req$status_code != 200) print(req$status_code) #Check whether error in request
-    return(content(req, "parsed")) #Directly parse as PNG
+    return(httr::content(req, "parsed")) #Directly parse as PNG
   }
   if (GRAYSCALE) {
-    myTile <- readPNG(destfile, native = FALSE)
-    myTile <- RGB2GRAY(myTile)
-    writePNG(myTile, destfile)
+    myTile <- png::readPNG(destfile, native = FALSE)
+    myTile <- RgoogleMaps::RGB2GRAY(myTile)
+    png::writePNG(myTile, destfile)
   }
   invisible(url)
 }

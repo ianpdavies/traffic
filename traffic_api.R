@@ -23,24 +23,33 @@ library(rgdal) # for geographic transformations and projections
 library(RStoolbox) # don't need this - perhaps for sclass?
 library(httr) #for in-memory download of API image
 library(gdalUtils) #for mosaicking
+library(rprojroot)
 library(tictoc)
+library(data.table)
+
+library(bigstatsr)
+library(doParallel)
+library(foreach)
 
 #==================================================================
 # Set constants and map parameters
 #==================================================================
-rootdir <- 'F:/Levin_Lab/stormwater'
+rootdir <- find_root(has_dir("src")) #UPDATE IF CHANGED DIRECTORY STRUCTURE
 src <- file.path(rootdir, '/src/traffic')
 source(file.path(src,"map_api_edit.R")) # edited function GetBingMaps from package `RGoogleMaps`
 source(file.path(src,"coord_conversion.R"))
-load(file.path(src,"mapValues"))
+load(file.path(src,"mapValues_AQsites"))
 load(file.path(src,"sclasses")) #Load trained classification model
-resdir <- file.path(rootdir, 'results/bing')
+resdir <- file.path(rootdir, 'results/airdata/tiles')
+if (!dir.exists(resdir)) {
+  dir.create(resdir)
+}
 
 #==================================================================
 # Download static images
 #==================================================================
 time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
-
+logopixpos <- which(!is.na(melt(t(logopars[['logopix']]))$value)) #Get position of Bing logo in rasterbrick format (cell index grows column wise then row wise)
 iterate_tiles <- function(tiling_list) {
   map.params <- list(maptype="CanvasDark", # parameters needed to construct URL for API call
                      zoom = zoom,
@@ -52,27 +61,47 @@ iterate_tiles <- function(tiling_list) {
                      MEMORY=TRUE,
                      labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
   
+  tic()
   imgs <- c() # holds images
-  ntiles <- nrow(tiling_list$coords)
-  for (i in 1:ntiles) {
-    print(100*i/ntiles)
+  ntiles <- nrow(tiling_list$coords_wgs)
+  ntiles <- 200
+  
+  cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
+  doParallel::registerDoParallel(cl)
+  opts <- list(chunkSize=ntiles/bigstatsr::nb_cores())
+  imgs <- foreach(i=seq_len(ntiles), .options.nws = opts) %dopar% {
+    #print(100*i/ntiles)
+    
     filename <- file.path(resdir,
                           paste(time.stamp, # time stamp
-                                str_pad(tiling_list$coords[i,'row'], nchar(tiling_list$imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
-                                str_pad(tiling_list$coords[i,'col'], nchar(tiling_list$imgs.w), pad = "0"), # pad img number with leading zeros and column number
+                                stringr::str_pad(tiling_list$coords_wgs[i,'row'], 
+                                                 nchar(tiling_list$imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
+                                stringr::str_pad(tiling_list$coords_wgs[i,'col'], 
+                                                 nchar(tiling_list$imgs.w), pad = "0"), # pad img number with leading zeros and column number
                                 ".tif", sep=""))
-    map <- brick(255L*do.call(GetBingMap2, c(list(mapArea=tiling_list$coords[i,c('yll','xll','yur','xur')],destfile=filename), map.params))-1L)
     
-    #Define extent in Web Mercator coordinates
-    xmin(map) <- tiling_list$coords_mercator[i,'xmin']
-    xmax(map) <- tiling_list$coords_mercator[i,'xmax']
-    ymin(map) <- tiling_list$coords_mercator[i,'ymin']
-    ymax(map) <- tiling_list$coords_mercator[i,'ymax']
-    crs(map) <- WebMercator # Define coordinate system
+    map <- raster::brick(255L*do.call(GetBingMap2, c(list(
+      mapArea=tiling_list$coords_wgs[i,c('yll','xll','yur','xur')],
+      destfile=filename), 
+      map.params))-1L)
     
-    writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
-    imgs <- c(imgs, filename) # list of filenames
+    if (max(map@data@values[-logopixpos,])>-1) { #Only continue if areas outside of logo have data 
+      #Remove logo
+      #map@data@values[logopixpos,] <- c(-1, -1, -1)
+      
+      #Define extent in Web Mercator coordinates
+      raster::xmin(map) <- tiling_list$coords_mercator[i,'xmin']
+      raster::xmax(map) <- tiling_list$coords_mercator[i,'xmax']
+      raster::ymin(map) <- tiling_list$coords_mercator[i,'ymin']
+      raster::ymax(map) <- tiling_list$coords_mercator[i,'ymax']
+      raster::crs(map) <- WebMercator # Define coordinate system
+    
+      raster::writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
+      return(filename)
+    }
   }
+  parallel::stopCluster(cl)    
+  toc()
   return(imgs)
   rm(i, map) # remove temp objects
 }

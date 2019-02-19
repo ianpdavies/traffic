@@ -26,10 +26,10 @@ library(gdalUtils) #for mosaicking
 library(rprojroot)
 library(tictoc)
 library(data.table)
-
 library(bigstatsr)
 library(doParallel)
 library(foreach)
+#If can't load packages, make sure that .libPaths() are correct + do not point to R project/delete libs in R project directory
 
 #==================================================================
 # Set constants and map parameters
@@ -48,9 +48,8 @@ if (!dir.exists(resdir)) {
 #==================================================================
 # Download static images
 #==================================================================
-time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
-logopixpos <- which(!is.na(melt(t(logopars[['logopix']]))$value)) #Get position of Bing logo in rasterbrick format (cell index grows column wise then row wise)
-iterate_tiles <- function(tiling_list) {
+iterate_tiles <- function(tiling_list, zoom, BING_KEY, bingcrs, GetBingMap2, logopix, mlc, outdir) {
+  time.stamp <- format(Sys.time(), "%y%m%d_%H_%M_") # want all images taken in an instance to have same timestamp
   map.params <- list(maptype="CanvasDark", # parameters needed to construct URL for API call
                      zoom = zoom,
                      apiKey= BING_KEY,
@@ -61,17 +60,19 @@ iterate_tiles <- function(tiling_list) {
                      MEMORY=TRUE,
                      labels=FALSE) #Setting labels=FALSE removes all features and labels of the map but roads and traffic. 
   
-  tic()
+  reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,1,NA,NA,3,4,NA,2), ncol=2) #reclassification matrix
   imgs <- c() # holds images
   ntiles <- nrow(tiling_list$coords_wgs)
-  ntiles <- 200
+  ntiles <- 100
   
   cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
+  on.exit(stopCluster(cl))
   doParallel::registerDoParallel(cl)
+  
   imgs <- foreach(i=seq_len(ntiles)) %dopar% {
     #print(100*i/ntiles)
     
-    filename <- file.path(resdir,
+    filename <- file.path(outdir,
                           paste(time.stamp, # time stamp
                                 stringr::str_pad(tiling_list$coords_wgs[i,'row'], 
                                                  nchar(tiling_list$imgs.h), pad = "0"), "_", # pad img number with leading zeros and row number
@@ -84,42 +85,59 @@ iterate_tiles <- function(tiling_list) {
       destfile=filename), 
       map.params))-1L)
     
-    if (max(map@data@values[-logopixpos,])>-1) { #Only continue if areas outside of logo have data 
+    if (max(map@data@values[-logopix,])>-1) { #Only continue if areas outside of logo have data 
       #Remove logo
-      map@data@values[logopixpos,] <- c(-1, -1, -1)
+      map@data@values[logopix,] <- c(-1, -1, -1)
       
       #Define extent in Web Mercator coordinates
       raster::xmin(map) <- tiling_list$coords_mercator[i,'xmin']
       raster::xmax(map) <- tiling_list$coords_mercator[i,'xmax']
       raster::ymin(map) <- tiling_list$coords_mercator[i,'ymin']
       raster::ymax(map) <- tiling_list$coords_mercator[i,'ymax']
-      raster::crs(map) <- WebMercator # Define coordinate system
-    
-      raster::writeRaster(map, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
+      raster::crs(map) <- bingcrs # Define coordinate system
+      
+      # classify image
+      # using model generated from training points then reclassify to green - 1, yellow - 2, orange - 3, red - 4
+      names(map) = c("band1","band2","band3") # give image bands the same names as those used in sclass
+      map@data@values[map@data@values == c(-1,-1,-1)] <- NA
+      r_class <- raster::reclassify(raster::predict(map, mlc$model), reclas) 
+      
+      #Write it out
+      raster::writeRaster(r_class, filename, format="GTiff",datatype='INT1U', overwrite=TRUE)
       return(filename)
     }
   }
-  parallel::stopCluster(cl)    
-  toc()
   return(imgs)
   rm(i, map) # remove temp objects
 }
 
 #Run differently depending on whether it's an odd or even hour
+logopixpos <- which(!is.na(melt(t(logopars[['logopix']]))$value)) #Get position of Bing logo in rasterbrick format (cell index grows column wise then row wise)
+
+tic()
 if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
-  imgs_list <- iterate_tiles(tiling_main)
+  imgs_list <- iterate_tiles(tiling_list=tiling_main, zoom=zoom, BING_KEY=BING_KEY, bingcrs=WebMercator, 
+                             mlc=sclass_mlc,
+                             GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
 } else {
-  imgs_list <- iterate_tiles(tiling_alt)
+  imgs_list <- iterate_tiles(tiling_list=tiling_alt, zoom=zoom, BING_KEY=BING_KEY, bingcrs=WebMercator,
+                             mlc=sclass_mlc,
+                             GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
 }
+toc()
 
 #==================================================================
 # Mosaic images into one raster
 #==================================================================
 tic()
-mosaic <- mosaic_rasters(imgs_list, file.path(resdir, paste0(time.stamp, "mosaic.tif")), output_Raster=T, co="COMPRESS=LZW")
+imgs_vec <- unlist(plyr::compact(imgs_list))
+mosaic <- mosaic_rasters(imgs_vec, 
+                         file.path(resdir, 
+                                   paste0(substr(basename(imgs_vec[1]), 1, 12), "mosaic.tif")), 
+                         output_Raster=T, co="COMPRESS=LZW") #,datatype='INT1U'
 #Remove tiles
-file.remove(imgs_list)
-file.remove(paste0(imgs_list,'.rda'))
+file.remove(imgs_vec)
+file.remove(paste0(imgs_vec,'.rda'))
 print('Done mosaicking')
 toc()
 

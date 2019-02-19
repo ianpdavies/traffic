@@ -63,7 +63,7 @@ iterate_tiles <- function(tiling_list, zoom, BING_KEY, bingcrs, GetBingMap2, log
   reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,1,NA,NA,3,4,NA,2), ncol=2) #reclassification matrix
   imgs <- c() # holds images
   ntiles <- nrow(tiling_list$coords_wgs)
-  ntiles <- 100
+  #ntiles <- 100
   
   cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
   on.exit(stopCluster(cl))
@@ -127,39 +127,18 @@ if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
 toc()
 
 #==================================================================
-# Mosaic images into one raster
+# Mosaic images into one raster - not performed in R anymore
 #==================================================================
-tic()
-imgs_vec <- unlist(plyr::compact(imgs_list))
-mosaic <- mosaic_rasters(imgs_vec, 
-                         file.path(resdir, 
-                                   paste0(substr(basename(imgs_vec[1]), 1, 12), "mosaic.tif")), 
-                         output_Raster=T, co="COMPRESS=LZW") #,datatype='INT1U'
-#Remove tiles
-file.remove(imgs_vec)
-file.remove(paste0(imgs_vec,'.rda'))
-print('Done mosaicking')
-toc()
+# tic()
+# imgs_vec <- unlist(plyr::compact(imgs_list))
+# mosaic <- mosaic_rasters(imgs_vec, 
+#                          file.path(resdir, 
+#                                    paste0(substr(basename(imgs_vec[1]), 1, 12), "mosaic.tif")), 
+#                          output_Raster=T, co="COMPRESS=LZW") #,datatype='INT1U'
+# #Remove tiles
+# file.remove(imgs_vec)
+# file.remove(paste0(imgs_vec,'.rda'))
+# print('Done mosaicking')
+# toc()
 
 #file.rename(paste0(time.stamp, "mosaic.tif"), "'F:/Levin_Lab/stormwater/src/traffic/data/traffic_classification_trainingimg.tif") 
-
-#=================================================
-# Supervised classification of traffic conditions
-#=================================================
-Sys.time()
-tic()
-names(mosaic) = c("band1","band2","band3") # give image bands the same names as those used in sclass
-r_class <- predict(mosaic, sclass_mlc$model) # classify using model generated from training points
-# Reclassify (moved to post processing in arcpy)
-#reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,NA,NA,NA,2,3,NA,1), ncol=2)
-#r_reclassified <- reclassify(r_class, reclas)
-# save as compressed geotiff
-writeRaster(r_class, filename=file.path(resdir,paste(time.stamp, "class_mlc.tif", sep="")), format="GTiff", datatype='INT1U', overwrite=TRUE)
-toc()
-
-file.remove(file.path(resdir,paste0(time.stamp, "mosaic.tif")))
-
-# create log of classified image names
-write(file.path(resdir, paste(time.stamp, "class.tif", sep="")), file="classified_image_log.txt", append=TRUE)
-print('Done classifying')
-toc()

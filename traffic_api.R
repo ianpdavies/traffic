@@ -63,7 +63,11 @@ iterate_tiles <- function(tiling_list, zoom, BING_KEY, bingcrs, GetBingMap2, log
   reclas <- matrix(c(1,2,3,4,5,6,7,8,NA,1,NA,NA,3,4,NA,2), ncol=2) #reclassification matrix
   imgs <- c() # holds images
   ntiles <- nrow(tiling_list$coords_wgs)
+<<<<<<< HEAD
   ntiles <- 100
+=======
+  #ntiles <- 100
+>>>>>>> fb78ea6179261796fdc26389e496755081d27bfc
   
   cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
   on.exit(stopCluster(cl))
@@ -127,7 +131,7 @@ if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
 toc()
 
 #==================================================================
-# Mosaic images into one raster
+# Mosaic images into one raster - not performed in R anymore
 #==================================================================
 # tic()
 # imgs_vec <- unlist(plyr::compact(imgs_list))
@@ -141,4 +145,8 @@ toc()
 # print('Done mosaicking')
 # toc()
 
+<<<<<<< HEAD
 #file.rename(paste0(time.stamp, "mosaic.tif"), "'F:/Levin_Lab/stormwater/src/traffic/data/traffic_classification_trainingimg.tif") 
+=======
+#file.rename(paste0(time.stamp, "mosaic.tif"), "'F:/Levin_Lab/stormwater/src/traffic/data/traffic_classification_trainingimg.tif") 
+>>>>>>> fb78ea6179261796fdc26389e496755081d27bfc

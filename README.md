@@ -15,7 +15,7 @@ Any third party user of this project's code is responsible for obtaining the aut
 ```
 BING_KEY = 'your API key'
 ```
-name it .Renviron and place it in your Sys.getenv("HOME") directory.  
+name it .Renviron and place it in your normalizePath(Sys.getenv("HOME")) directory.  
 3. Place codes and accompanying files in your project directory (rootdir)/src/traffic  
 4. Create a 'results' folder in your project directory  
 5. Run run_script.R (update rootdir variable at the beginning of the script and )  

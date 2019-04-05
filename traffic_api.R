@@ -38,6 +38,7 @@ rootdir <- find_root(has_dir("src")) #UPDATE IF CHANGED DIRECTORY STRUCTURE
 src <- file.path(rootdir, '/src/traffic')
 source(file.path(src,"map_api_edit.R")) # edited function GetBingMaps from package `RGoogleMaps`
 source(file.path(src,"coord_conversion.R"))
+#load(file.path(src, "mapValues"))
 load(file.path(src,"mapValues_AQsites"))
 load(file.path(src,"sclasses")) #Load trained classification model
 resdir <- file.path(rootdir, 'results/airdata/tiles')
@@ -116,16 +117,34 @@ iterate_tiles <- function(tiling_list, zoom, BING_KEY, bingcrs, GetBingMap2, log
 logopixpos <- which(!is.na(melt(t(logopars[['logopix']]))$value)) #Get position of Bing logo in rasterbrick format (cell index grows column wise then row wise)
 
 tic()
-if (as.numeric(format(Sys.time(), "%H"))%%2 > 0) {
-  imgs_list <- iterate_tiles(tiling_list=tiling_main, zoom=zoom, BING_KEY=BING_KEY, bingcrs=WebMercator, 
-                             mlc=sclass_mlc,
-                             GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
+thour = as.numeric(format(Sys.time(), "%H"))
+#Allocate download to different keys to avoid going over daily limit for AQI station download
+if (thour%%2 > 0) {
+  if (thour %in% c(0, 2, 4, 22)) {
+    imgs_list <- iterate_tiles(tiling_list=tiling_main, zoom=zoom, BING_KEY=BING_KEY2, bingcrs=WebMercator, 
+                               mlc=sclass_mlc,
+                               GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
+    
+  } else {
+    imgs_list <- iterate_tiles(tiling_list=tiling_main, zoom=zoom, BING_KEY=BING_KEY, bingcrs=WebMercator, 
+                               mlc=sclass_mlc,
+                               GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
+  }
+
 } else {
-  imgs_list <- iterate_tiles(tiling_list=tiling_alt, zoom=zoom, BING_KEY=BING_KEY, bingcrs=WebMercator,
-                             mlc=sclass_mlc,
-                             GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
+  if (thour %in% c(1, 3, 21, 23)) {
+    imgs_list <- iterate_tiles(tiling_list=tiling_alt, zoom=zoom, BING_KEY=BING_KEY3, bingcrs=WebMercator, 
+                               mlc=sclass_mlc,
+                               GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
+    
+  } else {
+    imgs_list <- iterate_tiles(tiling_list=tiling_alt, zoom=zoom, BING_KEY=BING_KEY, bingcrs=WebMercator, 
+                               mlc=sclass_mlc,
+                               GetBingMap2=GetBingMap2, logopix = logopixpos, outdir=resdir)
+  }
 }
 toc()
+
 
 #==================================================================
 # Mosaic images into one raster - not performed in R anymore

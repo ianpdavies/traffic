@@ -29,9 +29,13 @@ source('coord_conversion.R')
 source('map_api_edit.R')
 sourceCpp("getbboxes_spatDataManagement.cpp")
 resdir <- file.path(rootdir, 'results/airdata')
+#resdir <- file.path(rootdir, 'results')
+
 
 #Set constants
-BING_KEY = Sys.getenv("BING_KEY") #Access API key (see https://cran.r-project.org/web/packages/httr/vignettes/secrets.html)
+BING_KEY = Sys.getenv("BING_KEY") #Access API key(s) (see https://cran.r-project.org/web/packages/httr/vignettes/secrets.html)
+BING_KEY2 = Sys.getenv("BING_KEY2")
+BING_KEY3 = Sys.getenv("BING_KEY3")
 WebMercator <- CRS("+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext  +no_defs") #Define Bing map projection
 zoom <- 15
 Xpx <- 2000 # length of the image in pixels (maximum that Bing/Google will output)
@@ -42,11 +46,14 @@ Ypx <- 1500
 #==================================================================
 #Define function
 Mode <- function(x) {
+  "Purpose: Find values that occurs the most in vector"
   ux <- unique(x)
   ux[which.max(tabulate(match(x, ux)))]
 }
 
 getlogo <- function(Xpx, Ypx, zoom, BING_KEY) {
+  "Purpose: identify which pixels the Bing logo occupies in each tile"
+  
   #Get a single image in the middle of the ocean
   ll <- c(47, -126) #lower left coordinate
   bbox_ocean <- c(ll, 
@@ -237,15 +244,15 @@ logopars <- getlogo(Xpx, Ypx, zoom, BING_KEY)
 "For processing PS watershed"
 # PSwatershed <- readOGR(file.path(resdir, 'PSwtshd_OSMroads_dissolve.shp'))
 # PStiles <- setparams(PSwatershed, Xpx, Ypx, zoom, BING_KEY, logopars)
-# save(BING_KEY,  WebMercator, PSwatershed, zoom, 
-#      PStiles[['tiling_main']], PStiles[['tiling_alt']], 
+# save(BING_KEY,  WebMercator, PSwatershed, zoom,
+#      PStiles[['tiling_main']], PStiles[['tiling_alt']],
 #      file = "mapValues")
 
 "For processing US AQ monitoring stations"
-AQsites <- readOGR(file.path(resdir, 'airsites_600bufunion.shp'))
+AQsites <- readOGR(file.path(resdir, 'airsites_550bufunion.shp'))
 AQtiles <- setparams(shp=AQsites, Xpx, Ypx, zoom, BING_KEY, logopars)
 tiling_main <- AQtiles$tiling_main
 tiling_alt <-  AQtiles$tiling_alt
 
-save(BING_KEY,  WebMercator, AQsites,  zoom, tiling_main, tiling_alt, logopars,
+save(BING_KEY, BING_KEY2, BING_KEY3, WebMercator, AQsites,  zoom, tiling_main, tiling_alt, logopars,
      file = "mapValues_AQsites")

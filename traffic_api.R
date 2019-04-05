@@ -34,6 +34,7 @@ library(foreach)
 #==================================================================
 # Set constants and map parameters
 #==================================================================
+setwd(dirname(sys.frame(1)$ofile)) #Get path of current script when sourced
 rootdir <- find_root(has_dir("src")) #UPDATE IF CHANGED DIRECTORY STRUCTURE
 src <- file.path(rootdir, '/src/traffic')
 source(file.path(src,"map_api_edit.R")) # edited function GetBingMaps from package `RGoogleMaps`

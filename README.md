@@ -9,6 +9,7 @@ This project was executed using the Bing Maps REST Services API for the purpose 
 
 Any third party user of this project's code is responsible for obtaining the authorization of the Bing Maps team for their own use and do not benefit from our agreement.
 
+
 ## Getting Started  
 1. Get a Bing Maps API key https://msdn.microsoft.com/en-us/library/ff428642.aspx  
 2. Create a text file whose content is: 
@@ -67,5 +68,6 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 * Thanks to the Bing Maps team for authorizing this project
 * Thanks to Tostes, A. I. J., de LP Duarte-Figueiredo, F., Assunção, R., Salles, J., & Loureiro, A. A. (2013, August). From data to knowledge: city-wide traffic flows analysis and prediction using bing maps. In Proceedings of the 2nd ACM SIGKDD International Workshop on Urban Computing (p. 12). ACM. for the inspiration
 * Hat tip to anyone whose code was used
+
 
 --

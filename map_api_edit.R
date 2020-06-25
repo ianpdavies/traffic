@@ -4,14 +4,14 @@
 # https://msdn.microsoft.com/en-us/library/mt823636.aspx
 
 
-GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -122.325, 47.61, -122.107), size = c(640, 640), destfile, 
+GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -122.325, 47.61, -122.107), size = c(1500, 1500), destfile, 
                          zoom = 12, markers, path = "", 
                          maptype = c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight","AerialWithLabels")[1], 
                          format = c("png", "gif", "jpg")[1], #In effect, only png, gif, and jpg are accepted
                          extraURL = "", GRAYSCALE = FALSE, NEWMAP = TRUE, DISK=FALSE, MEMORY=TRUE, SCALE = 1, apiKey = NULL, 
                          verbose = 0, labels=TRUE) 
 {
-  if (!(maptype %in% c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight", "AerialWithLabels"))) # got rid of extra space in "Aerial ", added other styles
+  if (!(maptype %in% c("Road", "Aerial", "CanvasDark", "CanvasGray","CanvasLight", "AerialWithLabels")))
     maptype = "Road"
   if (missing(destfile)) 
     destfile = file.path(tempdir(), "mapTile.png")
@@ -22,11 +22,13 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   }
   if (all(c("lat", "lon") %in% names(center))) 
     center = center[c("lat", "lon")]
-  stopifnot(all(size <= 1500))
+  stopifnot(size[1] <= 2000)
+  stopifnot(size[2] <= 1500)
+  
   fileBase <- substring(destfile, 1, nchar(destfile) - 4)
   fileExt <- substring(destfile, nchar(destfile) - 2, nchar(destfile))
   if (is.null(center)) {
-    if (verbose) 
+    if (verbose & DISK) 
       print("Note that when center and zoom are not specified, no meta information on the map tile can be stored. This basically means that R cannot compute proper coordinates. You can still download the map tile and view it in R but overlays are not possible.")
     MetaInfo <- list(lat.center = NULL, lon.center = NULL, 
                      zoom = zoom, url = "bing", BBOX = NULL, size = size, 
@@ -36,13 +38,15 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
   else if (is.numeric(center) & !missing(zoom)) {
     MyMap <- list(lat.center = center[1], lon.center = center[2], 
                   zoom = zoom, SCALE = SCALE)
-    BBOX <- list(ll = XY2LatLon(MyMap, -size[1]/2 + 0.5, 
-                                -size[2]/2 - 0.5), ur = XY2LatLon(MyMap, size[1]/2 + 
+    BBOX <- list(ll = RgoogleMaps::XY2LatLon(MyMap, -size[1]/2 + 0.5, 
+                                -size[2]/2 - 0.5), ur = RgoogleMaps::XY2LatLon(MyMap, size[1]/2 + 
                                                                     0.5, size[2]/2 - 0.5))
     MetaInfo <- list(lat.center = center[1], lon.center = center[2], 
                      zoom = zoom, url = "bing", BBOX = BBOX, size = size, 
                      SCALE = SCALE)
-    save(MetaInfo, file = paste(destfile, "rda", sep = "."))
+    if (DISK) {
+      save(MetaInfo, file = paste(destfile, "rda", sep = "."))
+    }
   }
   if (length(size) < 2) {
     s <- paste(size, size, sep = ",")
@@ -77,7 +81,9 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
     MetaInfo <- list(lat.center = center[1], lon.center = center[2], 
                      zoom = zoom, url = "bing", BBOX = BBOX, size = size, 
                      SCALE = SCALE)
-    save(MetaInfo, file = paste(destfile, "rda", sep = "."))
+    if (DISK) {
+      save(MetaInfo, file = paste(destfile, "rda", sep = "."))
+    }
     bingURL = paste0("http://dev.virtualearth.net/REST/v1/Imagery/Map/", 
                      maptype, "?mapArea=")
     url <- paste0(bingURL, paste0(mapArea, collapse = ","), 
@@ -131,19 +137,20 @@ GetBingMap2 <- function (center = c(lat = 42, lon = -76), mapArea = c(45.219, -1
     suppressWarnings(download.file(url, destfile, mode = "wb", 
                                    quiet = TRUE)) #First write
     if (MEMORY) {
-    myMap <- ReadMapTile(destfile) #Then read
+    #myMap <- ReadMapTile(destfile, native = FALSE) 
+    myMap <- readPNG(destfile, native = FALSE) #Then read
     return(myMap)
     }
   }
   if (verbose < 2 & NEWMAP & DISK==F & MEMORY) {
-    req <- GET(url) #httr package
+    req <- httr::GET(url) #httr package
     if (req$status_code != 200) print(req$status_code) #Check whether error in request
-    return(content(req, as='parsed')) #Directly parse as PNG
+    return(httr::content(req, "parsed")) #Directly parse as PNG
   }
   if (GRAYSCALE) {
-    myTile <- readPNG(destfile, native = FALSE)
-    myTile <- RGB2GRAY(myTile)
-    writePNG(myTile, destfile)
+    myTile <- png::readPNG(destfile, native = FALSE)
+    myTile <- RgoogleMaps::RGB2GRAY(myTile)
+    png::writePNG(myTile, destfile)
   }
   invisible(url)
 }
